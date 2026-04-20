@@ -152,6 +152,50 @@
                 <button class="btn btn-secondary" onclick="generarFilas()">Generar filas</button>
               </div>
 
+              <!-- Sync panel Paso 2 (Mejora 14 — todos los roles) -->
+              <div class="sync-collapsible-section" style="margin-bottom:16px">
+                <button class="sync-toggle-btn" onclick="toggleSyncPanel2()">
+                  <span>↻ Actualizar datos maestros</span>
+                  <span id="syncToggleArrow2">▼</span>
+                </button>
+                <div class="sync-panel-content" id="syncPanelContent2">
+                  <div class="sync-grid-inline">
+                    <div class="sync-inline-item">
+                      <span class="sync-inline-label">Direcciones</span>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="sync-inline-badge" id="badgeSyncDir2"></span>
+                        <button class="btn btn-secondary btn-sm" id="btnSyncVDir2"
+                          onclick="syncViajesDatos('syncManualDirecciones','badgeSyncDir2','btnSyncVDir2')">↻</button>
+                      </div>
+                    </div>
+                    <div class="sync-inline-item">
+                      <span class="sync-inline-label">Conductores</span>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="sync-inline-badge" id="badgeSyncCond2"></span>
+                        <button class="btn btn-secondary btn-sm" id="btnSyncVCond2"
+                          onclick="syncViajesDatos('syncManualTripulantes','badgeSyncCond2','btnSyncVCond2')">↻</button>
+                      </div>
+                    </div>
+                    <div class="sync-inline-item">
+                      <span class="sync-inline-label">Vehículos</span>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="sync-inline-badge" id="badgeSyncVeh2"></span>
+                        <button class="btn btn-secondary btn-sm" id="btnSyncVVeh2"
+                          onclick="syncViajesDatos('syncManualFlota','badgeSyncVeh2','btnSyncVVeh2')">↻</button>
+                      </div>
+                    </div>
+                    <div class="sync-inline-item">
+                      <span class="sync-inline-label">Socios</span>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="sync-inline-badge" id="badgeSyncSoc2"></span>
+                        <button class="btn btn-secondary btn-sm" id="btnSyncVSoc2"
+                          onclick="syncViajesDatos('syncManualSocios','badgeSyncSoc2','btnSyncVSoc2')">↻</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Tabla dinámica -->
               <div id="tablaSection" style="display:none">
                 <div class="trips-table-wrap">
@@ -205,10 +249,10 @@
               <div class="success-panel">
                 <div class="success-icon">✅</div>
                 <h2>¡Viajes cargados correctamente!</h2>
-                <p>El archivo Excel fue generado y guardado en Google Drive.</p>
+                <p>La planilla fue generada y guardada en Google Drive.</p>
                 <div class="success-actions">
                   <a id="successFileUrl" href="#" target="_blank" class="btn btn-primary">
-                    Ver archivo en Drive
+                    Abrir en Google Sheets
                   </a>
                   <button class="btn btn-outline" onclick="nuevoPlan()">
                     Nuevo plan
@@ -262,7 +306,7 @@
   <!-- Loading overlay -->
   <div class="loading-overlay" id="loadingOverlay">
     <span class="spinner"></span>
-    <span>Generando Excel y subiendo a Drive...</span>
+    <span>Generando planilla y subiendo a Drive...</span>
   </div>
 
   <!-- Sidebar overlay -->

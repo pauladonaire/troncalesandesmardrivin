@@ -1,19 +1,15 @@
 // viajes.js
 
-// ── Estado global ──
 let SESSION    = null;
 let planCreado = null;
 let codigoDespacho = '';
-const vehiculosEnUso = {};  // { rowIdx: vehicleCode }
+const filaRefs = {}; // { idx: { dir, veh, arr, prov, ruta, cond, cond2, rutaFiltro } }
 
-// ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
   SESSION = requireSession();
   if (!SESSION) return;
-
   document.getElementById('userName').textContent     = SESSION.nombre_completo;
   document.getElementById('userRolBadge').textContent = SESSION.rol;
-
   document.getElementById('initLoader').style.display = 'flex';
   document.getElementById('contenido').style.display  = 'none';
   try {
@@ -30,55 +26,48 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// ── PASO 1 — Datos del Plan ──
+// ── PASO 1 ──
 
 function inicializarPaso1() {
   renderSteps(1);
   document.getElementById('paso1').classList.add('active');
 
-  const isAdmin     = ['ADMIN_GENERAL', 'ADMIN_TRAFICO'].includes(SESSION.rol);
-  const isSuperAdmin = SESSION.rol === 'ADMIN_GENERAL';
+  // Sync visible para TODOS los roles (Mejora 6/14)
+  const secSync = document.getElementById('secSyncViajes');
+  if (secSync) secSync.style.display = 'block';
+  const sbSync = document.getElementById('sbSyncItems');
+  if (sbSync) sbSync.style.display = 'block';
 
-  if (isAdmin) {
-    document.getElementById('secSyncViajes').style.display = 'block';
-    const sbSync = document.getElementById('sbSyncItems');
-    if (sbSync) sbSync.style.display = 'block';
-  }
-  if (isSuperAdmin) {
+  if (SESSION.rol === 'ADMIN_GENERAL') {
     const sbAdmin = document.getElementById('sbAdminLink');
     const sbDiv   = document.getElementById('sbAdminDivider');
     if (sbAdmin) sbAdmin.style.display = 'flex';
     if (sbDiv)   sbDiv.style.display   = 'block';
   }
-
   if (SESSION.rol === 'OPERACION_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min      = hoy;
     document.getElementById('fechaMaxEntrega').min = hoy;
   }
-
   document.getElementById('formPlan').addEventListener('submit', submitCrearPlan);
 }
 
 async function submitCrearPlan(e) {
   e.preventDefault();
-  const btn    = document.getElementById('btnCrearPlan');
-  const errEl  = document.getElementById('errorPlan');
+  const btn   = document.getElementById('btnCrearPlan');
+  const errEl = document.getElementById('errorPlan');
   errEl.textContent = '';
-
-  const fecha      = document.getElementById('fechaViaje').value;
   const nombre     = document.getElementById('nombrePlan').value.trim();
+  const fecha      = document.getElementById('fechaViaje').value;
   const pais       = document.getElementById('pais').value;
   const fechaMax   = document.getElementById('fechaMaxEntrega').value;
   const schemaCode = pais === 'argentina' ? 'CL-ARG' : 'CL-CHILE';
-
   setLoading(btn, true);
   try {
     const res = await gasCall('crearPlanDrivin', {
       planDatos: { description: nombre, date: fecha, schema_code: schemaCode }
     });
     if (!res.ok) throw new Error(res.error || 'Error al crear plan en Driv.in');
-
     planCreado = { id: res.response?.id || '', nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais };
     transicionarPaso(2);
   } catch (e) {
@@ -88,28 +77,18 @@ async function submitCrearPlan(e) {
   }
 }
 
-// ── PASO 2 — Tabla de viajes ──
+// ── PASO 2 ──
 
 function generarFilas() {
   const cantidad = parseInt(document.getElementById('cantidadFilas').value, 10);
-  if (!cantidad || cantidad < 1 || cantidad > 50) {
-    alert('Ingresá una cantidad entre 1 y 50.');
-    return;
-  }
-
-  for (const k in vehiculosEnUso) delete vehiculosEnUso[k];
-
+  if (!cantidad || cantidad < 1 || cantidad > 50) { alert('Ingresá una cantidad entre 1 y 50.'); return; }
+  for (const k in filaRefs) delete filaRefs[k];
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   codigoDespacho = `${String(now.getFullYear()).slice(-2)}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${cantidad}-${SESSION.iniciales}`;
-
   const tbody = document.getElementById('tripsTbody');
   tbody.innerHTML = '';
   for (let i = 0; i < cantidad; i++) tbody.appendChild(crearFila(i));
-
-  // Poblar vehículos después de crear filas
-  document.querySelectorAll('.f-vehiculo').forEach((sel, i) => poblarSelectVehiculo(sel, i));
-
   document.getElementById('tablaSection').style.display    = 'block';
   document.getElementById('btnCargarViajes').style.display = 'inline-flex';
   document.getElementById('validacionError').style.display = 'none';
@@ -118,204 +97,227 @@ function generarFilas() {
 function crearFila(idx) {
   const tr = document.createElement('tr');
   tr.dataset.idx = idx;
-
-  // Col 8 — Arrastre opciones
-  const optsArrastre = (window.DATOS.arrastres || []).map(a => {
-    const val = Object.values(a)[0] || '';
-    return `<option value="${escapeHtml(val)}">${escapeHtml(val)}</option>`;
-  }).join('');
-
-  // Col 11 — Proveedor opciones (socios tipo supplier)
-  const optsSocios = (window.DATOS.socios || [])
-    .filter(s => String(s.type || '').toLowerCase() === 'supplier')
-    .map(s => `<option value="${escapeHtml(s.name||'')}">${escapeHtml(s.name||'')}</option>`)
-    .join('');
-
-  // Col 13 — Ruta Maestra opciones
-  const optsRutas = (window.DATOS.rutas || []).map(r => {
-    const vals  = Object.values(r);
-    const nombre = String(vals[0] || '');
-    const prov   = String(vals[1] || '');
-    return `<option value="${escapeHtml(nombre)}" data-proveedor="${escapeHtml(prov)}">${escapeHtml(nombre)}</option>`;
-  }).join('');
-
   tr.innerHTML = `
-    <td class="col-despacho">
-      <input type="text" value="${escapeHtml(codigoDespacho)}" readonly>
-    </td>
-    <td class="col-alt">
-      <input type="text" class="f-alt" placeholder="Opcional">
-    </td>
-    <td class="col-uni">
-      <input type="number" class="f-uni1" min="1" step="1" placeholder="*">
-    </td>
-    <td class="col-uni">
-      <input type="number" class="f-uni2" min="0" step="1" placeholder="0">
-    </td>
-    <td class="col-uni">
-      <input type="number" class="f-uni3" min="0" step="1" placeholder="0">
-    </td>
+    <td class="col-despacho"><input type="text" value="${escapeHtml(codigoDespacho)}" readonly></td>
+    <td class="col-alt"><input type="text" class="f-alt" data-campo="codigoAlternativo" placeholder="*"></td>
+    <td class="col-uni"><input type="number" class="f-uni1" min="1" step="1" placeholder="*"></td>
+    <td class="col-uni"><input type="number" class="f-uni2" min="0" step="1" placeholder="0"></td>
+    <td class="col-uni"><input type="number" class="f-uni3" min="0" step="1" placeholder="0"></td>
     <td class="col-dir"      id="td-dir-${idx}"></td>
-    <td class="col-vehiculo">
-      <select class="f-vehiculo" onchange="onVehiculoChange(${idx}, this)">
-        <option value="">— vehículo —</option>
-      </select>
-    </td>
-    <td class="col-arrastre">
-      <select class="f-arrastre">
-        <option value="">—</option>
-        ${optsArrastre}
-      </select>
-    </td>
-    <td class="col-empleador" id="td-emp-${idx}">
-      <span class="empleador-value text-muted">—</span>
-    </td>
-    <td class="col-etiqueta"  id="td-costo-${idx}">
-      <span class="no-etiquetas">—</span>
-    </td>
-    <td class="col-proveedor">
-      <select class="f-proveedor" onchange="onProveedorChange(${idx}, this)">
-        <option value="">—</option>
-        ${optsSocios}
-      </select>
-    </td>
-    <td class="col-etiqueta"  id="td-ingreso-${idx}">
-      <span class="no-etiquetas">—</span>
-    </td>
-    <td class="col-ruta"      id="td-ruta-${idx}">
-      <select class="f-ruta">
-        <option value="">—</option>
-        ${optsRutas}
-      </select>
-    </td>
+    <td class="col-vehiculo" id="td-veh-${idx}"></td>
+    <td class="col-arrastre" id="td-arr-${idx}"></td>
+    <td class="col-empleador" id="td-emp-${idx}"><span class="empleador-value text-muted">—</span></td>
+    <td class="col-etiqueta"  id="td-costo-${idx}"><span class="no-etiquetas text-muted">—</span></td>
+    <td class="col-proveedor" id="td-prov-${idx}"></td>
+    <td class="col-etiqueta"  id="td-ingreso-${idx}"><span class="no-etiquetas text-muted">—</span></td>
+    <td class="col-ruta"      id="td-ruta-${idx}"></td>
     <td class="col-conductor" id="td-cond-${idx}"></td>
     <td class="col-conductor" id="td-cond2-${idx}"></td>
-    <td class="col-descripcion">
-      <input type="text" class="f-desc" placeholder="Opcional">
-    </td>
+    <td class="col-descripcion"><input type="text" class="f-desc" placeholder="Opcional"></td>
   `;
 
-  tr.querySelector(`#td-dir-${idx}`).appendChild(crearDropdownDir(idx));
-  tr.querySelector(`#td-cond-${idx}`).appendChild(crearDropdownConductor(idx, 'cond'));
-  tr.querySelector(`#td-cond2-${idx}`).appendChild(crearDropdownConductor(idx, 'cond2'));
+  const refs = { rutaFiltro: '' };
+
+  refs.dir = crearDropdownBuscable({
+    inputClass:  'f-dir',
+    placeholder: 'Buscar dirección... *',
+    opcionesFn:  () => (window.DATOS.direcciones || []).map(d => ({
+      value: d.code, labelCorto: d.code,
+      label: `[${d.code}] — ${d.name} | ${d.address1}, ${d.city}`
+    }))
+  });
+
+  refs.veh = crearDropdownBuscable({
+    inputClass:   'f-vehiculo',
+    placeholder:  'Buscar vehículo... *',
+    opcionesFn:   () => (window.DATOS.flota || []).map(v => ({
+      value: v.code,
+      label: `${v.code}${v.description ? ' — ' + v.description : ''} | ${v.employer_name || 'Sin empleador'}`
+    })),
+    deshabilitadosFn: () => Object.keys(filaRefs)
+      .filter(k => Number(k) !== idx)
+      .map(k => filaRefs[k]?.veh?.getValue())
+      .filter(Boolean),
+    onChange: (value) => onVehiculoChange(idx, value)
+  });
+
+  refs.arr = crearDropdownBuscable({
+    inputClass:  'f-arrastre',
+    placeholder: '— arrastre —',
+    opcionesFn:  () => (window.DATOS.arrastres || []).map(a => {
+      const vals = Object.values(a);
+      const v = String(vals[0] || '');
+      return { value: v, label: v + (vals[1] ? ' — ' + vals[1] : '') };
+    })
+  });
+
+  refs.prov = crearDropdownBuscable({
+    inputClass:  'f-proveedor',
+    placeholder: 'Buscar proveedor... *',
+    opcionesFn:  () => (window.DATOS.socios || [])
+      .filter(s => String(s.type || '').toLowerCase() === 'supplier')
+      .map(s => ({ value: s.name || '', label: s.name || '' })),
+    onChange: (value) => onProveedorChange(idx, value)
+  });
+
+  refs.ruta = crearDropdownBuscable({
+    inputClass:  'f-ruta',
+    placeholder: 'Buscar ruta... *',
+    opcionesFn:  () => {
+      const filtro = filaRefs[idx]?.rutaFiltro || '';
+      const all = (window.DATOS.rutas || []).map(r => {
+        const vals = Object.values(r);
+        const nombre = String(vals[0] || '');
+        const prov   = String(vals[1] || '');
+        return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov };
+      });
+      if (!filtro) return all;
+      const norm = filtro.toLowerCase();
+      return all.filter(r => r.rutaProv.toLowerCase() === norm || r.rutaProv === '');
+    }
+  });
+
+  refs.cond = crearDropdownBuscable({
+    inputClass:       'f-conductor',
+    placeholder:      'Buscar conductor... *',
+    opcionesFn:       () => (window.DATOS.tripulantes || []).map(t => ({
+      value: t.nombre_completo, labelCorto: t.nombre_completo,
+      label: t.nombre_completo + ' — ' + t.email,
+      extra: { nombre: t.nombre_completo, email: t.email }
+    })),
+    deshabilitadosFn: () => getConductoresYaUsados(idx, 'conductor')
+  });
+
+  refs.cond2 = crearDropdownBuscable({
+    inputClass:       'f-segundo',
+    placeholder:      '2do conductor...',
+    opcionesFn:       () => (window.DATOS.tripulantes || []).map(t => ({
+      value: t.nombre_completo, labelCorto: t.nombre_completo,
+      label: t.nombre_completo + ' — ' + t.email,
+      extra: { nombre: t.nombre_completo, email: t.email }
+    })),
+    deshabilitadosFn: () => getConductoresYaUsados(idx, 'segundoConductor')
+  });
+
+  filaRefs[idx] = refs;
+
+  tr.querySelector(`#td-dir-${idx}`).appendChild(refs.dir.wrap);
+  tr.querySelector(`#td-veh-${idx}`).appendChild(refs.veh.wrap);
+  tr.querySelector(`#td-arr-${idx}`).appendChild(refs.arr.wrap);
+  tr.querySelector(`#td-prov-${idx}`).appendChild(refs.prov.wrap);
+  tr.querySelector(`#td-ruta-${idx}`).appendChild(refs.ruta.wrap);
+  tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.wrap);
+  tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.wrap);
   return tr;
 }
 
-// ── Dropdowns de búsqueda ──
+// ── Dropdown buscable unificado (Mejora 9) ──
 
-function crearDropdownDir(idx) {
-  return crearDropdownBusqueda({
-    inputClass:  'f-dir',
-    placeholder: 'Buscar dirección... *',
-    itemsFn:     () => window.DATOS.direcciones || [],
-    labelFn:     d => `[${d.code}] — ${d.name} | ${d.address1}, ${d.city}, ${d.state}`,
-    valueFn:     d => d.code
-  });
-}
-
-function crearDropdownConductor(idx, tipo) {
-  return crearDropdownBusqueda({
-    inputClass:  tipo === 'cond' ? 'f-conductor' : 'f-segundo',
-    placeholder: tipo === 'cond' ? 'Buscar conductor... *' : 'Buscar 2do conductor...',
-    itemsFn:     () => window.DATOS.tripulantes || [],
-    labelFn:     t => t.nombre_completo,
-    valueFn:     t => t.nombre_completo,
-    extraFn:     t => JSON.stringify({ nombre: t.nombre_completo, email: t.email })
-  });
-}
-
-function crearDropdownBusqueda({ inputClass, placeholder, itemsFn, labelFn, valueFn, extraFn }) {
+function crearDropdownBuscable({ inputClass = '', placeholder = '', opcionesFn, onChange = null, deshabilitadosFn = null }) {
   const wrap  = document.createElement('div');
   wrap.className = 'dropdown-wrap';
 
   const input = document.createElement('input');
-  input.type          = 'text';
-  input.className     = 'dropdown-input ' + (inputClass || '');
-  input.placeholder   = placeholder;
+  input.type         = 'text';
+  input.className    = 'dropdown-input' + (inputClass ? ' ' + inputClass : '');
+  input.placeholder  = placeholder;
+  input.autocomplete = 'off';
   input.dataset.value = '';
-  if (extraFn) input.dataset.extra = '{}';
 
   const list = document.createElement('div');
   list.className = 'dropdown-list';
 
   function poblar(q) {
-    const items = itemsFn();
     list.innerHTML = '';
-    const filtrados = q
-      ? items.filter(item => labelFn(item).toLowerCase().includes(q.toLowerCase()))
-      : items;
+    const opciones      = opcionesFn ? opcionesFn() : [];
+    const deshabilitados = deshabilitadosFn ? deshabilitadosFn() : [];
+    const norm      = q.trim().toLowerCase();
+    const filtradas = norm ? opciones.filter(o => o.label.toLowerCase().includes(norm)) : opciones;
 
-    if (!filtrados.length) {
+    if (!filtradas.length) {
       const el = document.createElement('div');
-      el.className   = 'dropdown-option no-results';
+      el.className = 'dropdown-option no-results';
       el.textContent = 'Sin resultados';
       list.appendChild(el);
       return;
     }
-    filtrados.slice(0, 100).forEach(item => {
-      const el = document.createElement('div');
-      el.className   = 'dropdown-option';
-      el.textContent = labelFn(item);
-      el.addEventListener('mousedown', () => {
-        input.value         = valueFn(item);
-        input.dataset.value = valueFn(item);
-        if (extraFn) input.dataset.extra = extraFn(item);
-        list.classList.remove('open');
-        input.classList.remove('error');
-      });
+    filtradas.slice(0, 120).forEach(opcion => {
+      const el       = document.createElement('div');
+      const disabled = deshabilitados.includes(opcion.value);
+      el.className   = 'dropdown-option' + (disabled ? ' disabled' : '');
+      el.textContent = opcion.label;
+      if (disabled) {
+        el.title = 'Ya seleccionado en otra fila';
+      } else {
+        el.addEventListener('mousedown', e => {
+          e.preventDefault();
+          input.dataset.value = opcion.value;
+          input.value = opcion.labelCorto || opcion.label;
+          if (opcion.extra !== undefined) input.dataset.extra = JSON.stringify(opcion.extra);
+          list.classList.remove('open');
+          input.classList.remove('error');
+          if (onChange) onChange(opcion.value, opcion.label, opcion);
+        });
+      }
       list.appendChild(el);
     });
   }
 
   input.addEventListener('focus', () => { poblar(input.value); abrirDropdown(input, list); });
-  input.addEventListener('input', () => { poblar(input.value); abrirDropdown(input, list); });
-  input.addEventListener('blur',  () => setTimeout(() => list.classList.remove('open'), 160));
+  input.addEventListener('input', () => { input.dataset.value = ''; poblar(input.value); abrirDropdown(input, list); });
+  input.addEventListener('blur',  () => setTimeout(() => {
+    list.classList.remove('open');
+    if (!input.dataset.value) input.value = '';
+  }, 160));
 
   wrap.appendChild(input);
   wrap.appendChild(list);
-  return wrap;
+
+  return {
+    wrap,
+    input,
+    getValue:   () => input.dataset.value || '',
+    getExtra:   () => { try { return JSON.parse(input.dataset.extra || '{}'); } catch { return {}; } },
+    setValue:   (v, label) => { input.dataset.value = v; input.value = label || v; },
+    clearValue: () => { input.dataset.value = ''; input.value = ''; }
+  };
 }
 
 function abrirDropdown(inputEl, listaEl) {
   const rect = inputEl.getBoundingClientRect();
   listaEl.style.top   = (rect.bottom + 2) + 'px';
   listaEl.style.left  = rect.left + 'px';
-  listaEl.style.width = Math.max(rect.width, 220) + 'px';
+  listaEl.style.width = Math.max(rect.width, 240) + 'px';
   listaEl.classList.add('open');
 }
 
-// ── Vehículos con exclusividad ──
+// ── Conductores sin duplicar (Mejora 16) ──
 
-function poblarSelectVehiculo(sel, idx) {
-  const actual = vehiculosEnUso[idx] || '';
-  sel.innerHTML = '<option value="">— vehículo —</option>';
-  (window.DATOS.flota || []).forEach(v => {
-    const enUso = Object.entries(vehiculosEnUso).some(([k, c]) => Number(k) !== idx && c === v.code);
-    if (!enUso || v.code === actual) {
-      const opt      = document.createElement('option');
-      opt.value      = v.code;
-      opt.textContent = v.code + (v.name ? ` — ${v.name}` : '');
-      if (v.code === actual) opt.selected = true;
-      sel.appendChild(opt);
+function getConductoresYaUsados(filaIdx, campo) {
+  const usados = new Set();
+  Object.keys(filaRefs).forEach(k => {
+    const i = Number(k);
+    const r = filaRefs[i];
+    if (!r) return;
+    const c1 = r.cond?.getValue();
+    const c2 = r.cond2?.getValue();
+    if (i === filaIdx) {
+      if (campo === 'conductor'       && c2) usados.add(c2);
+      if (campo === 'segundoConductor' && c1) usados.add(c1);
+    } else {
+      if (c1) usados.add(c1);
+      if (c2) usados.add(c2);
     }
   });
+  return Array.from(usados);
 }
 
-function refrescarTodosVehiculos() {
-  document.querySelectorAll('.f-vehiculo').forEach((sel, i) => poblarSelectVehiculo(sel, i));
-}
+// ── Vehículo ──
 
-function onVehiculoChange(idx, sel) {
-  const code = sel.value;
-  if (code) vehiculosEnUso[idx] = code;
-  else      delete vehiculosEnUso[idx];
-  refrescarTodosVehiculos();
+function onVehiculoChange(idx, code) {
   actualizarEmpleador(idx, code);
   actualizarEtiquetasCosto(idx, code);
-  actualizarEtiquetasIngreso(idx);
 }
-
-// ── Empleador ──
 
 function getEmpleadorDeVehiculo(code) {
   if (!code) return '';
@@ -327,67 +329,100 @@ function actualizarEmpleador(idx, code) {
   const td  = document.getElementById('td-emp-' + idx);
   if (!td) return;
   const emp = getEmpleadorDeVehiculo(code);
+  td.dataset.empleador = emp || '';
   if (!code) {
     td.innerHTML = '<span class="empleador-value text-muted">—</span>';
   } else if (emp) {
     td.innerHTML = `<span class="empleador-value text-muted">${escapeHtml(emp)}</span>`;
-    td.dataset.empleador = emp;
   } else {
     td.innerHTML = `<div class="empleador-warn">⚠ Sin employer — actualizar en Driv.in</div>`;
-    td.dataset.empleador = '';
   }
 }
 
 function getEmpleadorDeFila(idx) {
-  const td = document.getElementById('td-emp-' + idx);
-  if (!td) return '';
-  return td.dataset.empleador || '';
+  return document.getElementById('td-emp-' + idx)?.dataset.empleador || '';
 }
 
-// ── Etiquetas Costo (col M idx 12 → employer, col AA idx 26 → etiqueta) ──
+// ── Vigencia (Mejora 15) ──
+
+function estaVigente(vigenciaDesde, vigenciaHasta) {
+  if (!vigenciaDesde || !vigenciaHasta) return false;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const desde = parsearFecha(vigenciaDesde);
+  const hasta  = parsearFecha(vigenciaHasta);
+  if (!desde || !hasta) return false;
+  return hoy >= desde && hoy <= hasta;
+}
+
+function parsearFecha(valor) {
+  if (!valor) return null;
+  const str = String(valor).trim();
+  const m1 = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m1) return new Date(+m1[3], +m1[2] - 1, +m1[1]);
+  const m2 = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3]);
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// ── Etiquetas Costo — vehículo → employer → col M(12) → col AA(26) (Mejora 7) ──
 
 function actualizarEtiquetasCosto(idx, vehiculoCode) {
-  const td  = document.getElementById('td-costo-' + idx);
+  const td = document.getElementById('td-costo-' + idx);
   if (!td) return;
-  const emp = getEmpleadorDeVehiculo(vehiculoCode);
-  const items = (window.DATOS.esquemasCostos || []).slice(1)
-    .filter(r => emp && String(r[12] || '').toLowerCase() === emp.toLowerCase())
-    .map(r => String(r[26] || ''))
-    .filter(Boolean);
-
   td.innerHTML = '';
+  const emp = getEmpleadorDeVehiculo(vehiculoCode);
+  if (!emp) {
+    td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados para este empleador</span>';
+    return;
+  }
+  const norm  = emp.trim().toLowerCase();
+  const items = (window.DATOS.esquemasCostos || []).slice(1)
+    .filter(r => String(r[12] || '').trim().toLowerCase() === norm)
+    .map(r => ({ etiqueta: String(r[26] || '').trim(), vigenciaDesde: r[22] || '', vigenciaHasta: r[23] || '' }))
+    .filter(e => e.etiqueta !== '');
   if (!items.length) {
-    td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados</span>';
+    td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados para este empleador</span>';
     return;
   }
   td.appendChild(crearMultiSelect(idx, 'costo', items));
 }
 
-// ── Etiquetas Ingreso (col L idx 11 → employer, col AA idx 26 → etiqueta) ──
+// ── Etiquetas Ingreso — proveedor → col L(11) → col AA(26) (Mejora 7) ──
 
-function actualizarEtiquetasIngreso(idx) {
-  const td  = document.getElementById('td-ingreso-' + idx);
+function actualizarEtiquetasIngreso(idx, proveedorNombre) {
+  const td = document.getElementById('td-ingreso-' + idx);
   if (!td) return;
-  const emp = getEmpleadorDeFila(idx);
-  const items = (window.DATOS.esquemasIngresos || []).slice(1)
-    .filter(r => emp && String(r[11] || '').toLowerCase() === emp.toLowerCase())
-    .map(r => String(r[26] || ''))
-    .filter(Boolean);
-
   td.innerHTML = '';
+  if (!proveedorNombre) {
+    td.innerHTML = '<span class="no-etiquetas text-muted">Seleccioná un proveedor primero</span>';
+    return;
+  }
+  const norm  = proveedorNombre.trim().toLowerCase();
+  const items = (window.DATOS.esquemasIngresos || []).slice(1)
+    .filter(r => String(r[11] || '').trim().toLowerCase() === norm)
+    .map(r => ({ etiqueta: String(r[26] || '').trim(), vigenciaDesde: r[22] || '', vigenciaHasta: r[23] || '' }))
+    .filter(e => e.etiqueta !== '');
   if (!items.length) {
-    td.innerHTML = '<span class="no-etiquetas text-muted">Sin tarifa cargada</span>';
+    td.innerHTML = '<span class="no-etiquetas text-muted">Sin tarifas cargadas para este proveedor</span>';
     return;
   }
   td.appendChild(crearMultiSelect(idx, 'ingreso', items));
 }
 
-// ── Multi-select con pills ──
+// ── Proveedor change → ingreso + rutas (Mejoras 7+8) ──
+
+function onProveedorChange(idx, prov) {
+  actualizarEtiquetasIngreso(idx, prov);
+  if (filaRefs[idx]) filaRefs[idx].rutaFiltro = prov;
+}
+
+// ── Multi-select con vigencia (Mejora 15) ──
 
 function crearMultiSelect(idx, tipo, items) {
   const wrap = document.createElement('div');
-  wrap.className    = 'multi-select-wrap';
-  wrap.id           = `ms-${tipo}-${idx}`;
+  wrap.className        = 'multi-select-wrap';
+  wrap.id               = `ms-${tipo}-${idx}`;
   wrap.dataset.selected = '[]';
 
   const pills = document.createElement('div');
@@ -404,12 +439,14 @@ function crearMultiSelect(idx, tipo, items) {
   items.forEach(item => {
     const lbl = document.createElement('label');
     lbl.className = 'multi-option';
+    const vigente = estaVigente(item.vigenciaDesde, item.vigenciaHasta);
+    if (!vigente) { lbl.classList.add('fuera-vigencia'); lbl.title = 'Fuera de período de vigencia'; }
     const cb  = document.createElement('input');
     cb.type   = 'checkbox';
-    cb.value  = item;
-    cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph));
+    cb.value  = item.etiqueta;
+    cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph, items));
     lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(' ' + item));
+    lbl.appendChild(document.createTextNode(' ' + item.etiqueta));
     dropdown.appendChild(lbl);
   });
 
@@ -421,98 +458,85 @@ function crearMultiSelect(idx, tipo, items) {
       const rect = pills.getBoundingClientRect();
       dropdown.style.top   = (rect.bottom + 2) + 'px';
       dropdown.style.left  = rect.left + 'px';
-      dropdown.style.width = rect.width + 'px';
+      dropdown.style.width = Math.max(rect.width, 180) + 'px';
       dropdown.classList.add('open');
     }
   });
   document.addEventListener('click', e => {
     if (!wrap.contains(e.target)) dropdown.classList.remove('open');
-  }, { capture: false });
+  });
 
   wrap.appendChild(pills);
   wrap.appendChild(dropdown);
   return wrap;
 }
 
-function actualizarMultiSelect(wrap, pills, ph) {
-  const selected = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked'))
-    .map(c => c.value);
+function actualizarMultiSelect(wrap, pills, ph, items) {
+  const selected = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
   wrap.dataset.selected = JSON.stringify(selected);
-  renderPills(pills, ph, selected, wrap);
+  renderPills(pills, ph, selected, wrap, items);
 }
 
-function renderPills(pills, ph, selected, wrap) {
+function renderPills(pills, ph, selected, wrap, items) {
   pills.innerHTML = '';
-  if (!selected.length) {
-    pills.appendChild(ph);
-    return;
-  }
+  if (!selected.length) { pills.appendChild(ph); return; }
   selected.forEach(val => {
-    const pill = document.createElement('span');
-    pill.className = 'pill';
-    const txt = document.createTextNode(val);
-    const rm  = document.createElement('span');
+    const item    = items ? items.find(i => i.etiqueta === val) : null;
+    const vigente = item ? estaVigente(item.vigenciaDesde, item.vigenciaHasta) : true;
+    const pill    = document.createElement('span');
+    pill.className = 'pill' + (vigente ? '' : ' pill-fuera-vigencia');
+    if (!vigente) pill.title = 'Fuera de período de vigencia';
+    const rm = document.createElement('span');
     rm.className   = 'pill-remove';
     rm.textContent = '×';
     rm.addEventListener('click', e => {
       e.stopPropagation();
-      wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        if (cb.value === val) cb.checked = false;
-      });
-      actualizarMultiSelect(wrap, pills, ph);
+      wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => { if (cb.value === val) cb.checked = false; });
+      actualizarMultiSelect(wrap, pills, ph, items);
     });
-    pill.appendChild(txt);
+    pill.appendChild(document.createTextNode(val));
     pill.appendChild(rm);
     pills.appendChild(pill);
   });
 }
 
-// ── Proveedor → filtrar Ruta Maestra ──
-
-function onProveedorChange(idx, sel) {
-  const prov  = sel.value;
-  const tdRuta = document.getElementById('td-ruta-' + idx);
-  if (!tdRuta) return;
-  const sr = tdRuta.querySelector('.f-ruta');
-  if (!sr) return;
-  Array.from(sr.options).forEach(opt => {
-    if (!opt.value) return;
-    opt.hidden = prov ? opt.dataset.proveedor !== prov : false;
-  });
-  sr.value = '';
-}
-
-// ── Validación ──
+// ── Validación (Mejoras 5+18) ──
 
 function validarFilas() {
   let ok = true;
   document.querySelectorAll('#tripsTbody tr').forEach(tr => {
+    const idx  = Number(tr.dataset.idx);
+    const refs = filaRefs[idx] || {};
+
+    const altEl = tr.querySelector('.f-alt');
+    toggleError(altEl, !altEl?.value?.trim()) && (ok = false);
+
     const uni1 = tr.querySelector('.f-uni1');
-    const dir  = tr.querySelector('.f-dir');
-    const veh  = tr.querySelector('.f-vehiculo');
-    const cond = tr.querySelector('.f-conductor');
+    toggleError(uni1, !uni1?.value || parseInt(uni1.value, 10) < 1) && (ok = false);
 
-    // Unidades 1
-    if (!uni1?.value || parseInt(uni1.value, 10) < 1) {
-      uni1?.classList.add('error'); ok = false;
-    } else { uni1?.classList.remove('error'); }
+    toggleError(refs.dir?.input,  !refs.dir?.getValue())  && (ok = false);
+    toggleError(refs.veh?.input,  !refs.veh?.getValue())  && (ok = false);
+    toggleError(refs.prov?.input, !refs.prov?.getValue()) && (ok = false);
+    toggleError(refs.ruta?.input, !refs.ruta?.getValue()) && (ok = false);
+    toggleError(refs.cond?.input, !refs.cond?.getValue()) && (ok = false);
 
-    // Dirección
-    if (!dir?.dataset?.value) {
-      dir?.classList.add('error'); ok = false;
-    } else { dir?.classList.remove('error'); }
+    const msC = document.getElementById(`ms-costo-${idx}`);
+    const costoSel = msC ? JSON.parse(msC.dataset.selected || '[]') : [];
+    const pillsC = msC?.querySelector('.multi-pills');
+    if (pillsC) { pillsC.classList.toggle('error', !costoSel.length); if (!costoSel.length) ok = false; }
 
-    // Vehículo
-    if (!veh?.value) {
-      veh?.classList.add('error'); ok = false;
-    } else { veh?.classList.remove('error'); }
-
-    // Conductor
-    if (!cond?.dataset?.value) {
-      cond?.classList.add('error'); ok = false;
-    } else { cond?.classList.remove('error'); }
+    const msI = document.getElementById(`ms-ingreso-${idx}`);
+    const ingresoSel = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
+    const pillsI = msI?.querySelector('.multi-pills');
+    if (pillsI) { pillsI.classList.toggle('error', !ingresoSel.length); if (!ingresoSel.length) ok = false; }
   });
   return ok;
+}
+
+function toggleError(el, hasError) {
+  if (!el) return hasError;
+  el.classList.toggle('error', hasError);
+  return hasError;
 }
 
 // ── Recolectar datos ──
@@ -520,38 +544,35 @@ function validarFilas() {
 function recolectarViajes() {
   const viajes = [];
   document.querySelectorAll('#tripsTbody tr').forEach(tr => {
-    const idx  = Number(tr.dataset.idx);
-    const cond = tr.querySelector('.f-conductor');
-    const cond2= tr.querySelector('.f-segundo');
-    const msC  = document.getElementById(`ms-costo-${idx}`);
-    const msI  = document.getElementById(`ms-ingreso-${idx}`);
-
-    const condExtra  = (() => { try { return JSON.parse(cond?.dataset?.extra || '{}'); } catch { return {}; } })();
-    const cond2Extra = (() => { try { return JSON.parse(cond2?.dataset?.extra || '{}'); } catch { return {}; } })();
-
+    const idx   = Number(tr.dataset.idx);
+    const refs  = filaRefs[idx] || {};
+    const msC   = document.getElementById(`ms-costo-${idx}`);
+    const msI   = document.getElementById(`ms-ingreso-${idx}`);
+    const cExtra  = refs.cond?.getExtra()  || {};
+    const c2Extra = refs.cond2?.getExtra() || {};
     viajes.push({
       codigoDespacho,
-      codigoAlternativo:      tr.querySelector('.f-alt')?.value        || '',
-      unidades1:              tr.querySelector('.f-uni1')?.value        || '',
-      unidades2:              tr.querySelector('.f-uni2')?.value        || '',
-      unidades3:              tr.querySelector('.f-uni3')?.value        || '',
-      codigoDireccion:        tr.querySelector('.f-dir')?.dataset?.value || '',
-      vehiculo:               tr.querySelector('.f-vehiculo')?.value    || '',
-      arrastre:               tr.querySelector('.f-arrastre')?.value    || '',
+      codigoAlternativo:      tr.querySelector('.f-alt')?.value  || '',
+      unidades1:              tr.querySelector('.f-uni1')?.value  || '',
+      unidades2:              tr.querySelector('.f-uni2')?.value  || '',
+      unidades3:              tr.querySelector('.f-uni3')?.value  || '',
+      codigoDireccion:        refs.dir?.getValue()                || '',
+      vehiculo:               refs.veh?.getValue()                || '',
+      arrastre:               refs.arr?.getValue()                || '',
       empleador:              getEmpleadorDeFila(idx),
-      etiquetasCosto:         msC  ? JSON.parse(msC.dataset.selected  || '[]') : [],
-      proveedor:              tr.querySelector('.f-proveedor')?.value   || '',
-      etiquetasIngreso:       msI  ? JSON.parse(msI.dataset.selected  || '[]') : [],
-      rutaMaestra:            tr.querySelector('.f-ruta')?.value        || '',
-      conductorEmail:         condExtra.email                           || '',
-      segundoConductorNombre: cond2Extra.nombre                         || '',
-      descripcionViaje:       tr.querySelector('.f-desc')?.value        || ''
+      etiquetasCosto:         msC ? JSON.parse(msC.dataset.selected || '[]') : [],
+      proveedor:              refs.prov?.getValue()               || '',
+      etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
+      rutaMaestra:            refs.ruta?.getValue()               || '',
+      conductorEmail:         cExtra.email                        || '',
+      segundoConductorNombre: c2Extra.nombre                      || '',
+      descripcionViaje:       tr.querySelector('.f-desc')?.value  || ''
     });
   });
   return viajes;
 }
 
-// ── Cargar viajes (con modal confirmación) ──
+// ── Cargar viajes ──
 
 function cargarViajes() {
   if (!validarFilas()) {
@@ -562,14 +583,12 @@ function cargarViajes() {
     return;
   }
   document.getElementById('validacionError').style.display = 'none';
-
   const viajes = recolectarViajes();
-  document.getElementById('resNViajes').textContent   = viajes.length;
+  document.getElementById('resNViajes').textContent    = viajes.length;
   document.getElementById('resNombrePlan').textContent = planCreado.nombre;
-  document.getElementById('resFecha').textContent     = planCreado.fecha;
-  document.getElementById('resEsquema').textContent   = planCreado.schemaCode;
-  document.getElementById('resFechaMax').textContent  = planCreado.fechaMaxEntrega;
-
+  document.getElementById('resFecha').textContent      = planCreado.fecha;
+  document.getElementById('resEsquema').textContent    = planCreado.schemaCode;
+  document.getElementById('resFechaMax').textContent   = planCreado.fechaMaxEntrega;
   window._viajesParaCargar = viajes;
   document.getElementById('modalConfirm').classList.add('active');
 }
@@ -590,23 +609,13 @@ async function confirmarCarga() {
   }
 }
 
+// ── Ejecutar carga — Google Sheets (Mejora 17) ──
+
 async function ejecutarCarga(viajes) {
   const overlay = document.getElementById('loadingOverlay');
-  const wb      = XLSX.utils.book_new();
-  const headers = getHeadersExcel();
-  const rows    = viajes.map(v => mapearViaje(v, planCreado, SESSION.email));
-  const ws      = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  XLSX.utils.book_append_sheet(wb, ws, planCreado.nombre.substring(0, 31));
-  const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
-  const nombreArchivo = ('Troncales_' + planCreado.nombre + '_' + planCreado.fecha + '.xlsx')
-    .replace(/[/\\?%*:|"<>]/g, '_');
-
-  const res = await gasCall('subirExcelADrive', { base64, nombreArchivo, viajes, planDatos: planCreado });
+  const res = await gasCall('crearPlanillaViajes', { viajes, planDatos: planCreado });
   overlay.classList.remove('active');
-
-  if (!res.ok) throw new Error(res.error || 'Error al subir a Drive');
-
+  if (!res.ok) throw new Error(res.error || 'Error al crear planilla en Drive');
   document.getElementById('successFileUrl').href = res.fileUrl || '#';
   document.getElementById('paso2').classList.remove('active');
   document.getElementById('pasoExito').style.display = 'block';
@@ -618,7 +627,7 @@ async function ejecutarCarga(viajes) {
 function nuevoPlan() {
   planCreado = null;
   codigoDespacho = '';
-  for (const k in vehiculosEnUso) delete vehiculosEnUso[k];
+  for (const k in filaRefs) delete filaRefs[k];
   document.getElementById('tripsTbody').innerHTML          = '';
   document.getElementById('tablaSection').style.display    = 'none';
   document.getElementById('btnCargarViajes').style.display = 'none';
@@ -628,7 +637,7 @@ function nuevoPlan() {
   transicionarPaso(1);
 }
 
-// ── Navegación pasos ──
+// ── Navegación ──
 
 function transicionarPaso(paso) {
   document.querySelectorAll('.paso').forEach(p => p.classList.remove('active'));
@@ -637,8 +646,8 @@ function transicionarPaso(paso) {
   } else if (paso === 2) {
     document.getElementById('paso2').classList.add('active');
     document.getElementById('resumenNombrePlan').textContent = planCreado.nombre;
-    document.getElementById('resumenFecha').textContent     = planCreado.fecha;
-    document.getElementById('resumenEsquema').textContent   = planCreado.schemaCode;
+    document.getElementById('resumenFecha').textContent      = planCreado.fecha;
+    document.getElementById('resumenEsquema').textContent    = planCreado.schemaCode;
   }
   renderSteps(paso);
 }
@@ -651,63 +660,16 @@ function renderSteps(activo) {
   });
 }
 
-// ── Excel 100 columnas (mismo orden que construirFilaViaje_ en Excel.gs) ──
-
-function mapearViaje(v, p, emailUsuario) {
-  const etq = [...(v.etiquetasCosto || []), ...(v.etiquetasIngreso || [])].join(',');
-  return [
-    p.fechaMaxEntrega || '',     // [0]
-    p.nombre          || '',     // [1]
-    p.schemaCode      || '',     // [2]
-    v.codigoDespacho  || '',     // [3]
-    v.unidades1       || '',     // [4]
-    v.unidades2       || '',     // [5]
-    v.unidades3       || '',     // [6]
-    '',                          // [7]  Prioridad
-    v.codigoDireccion || '',     // [8]
-    '','','','','','','','',     // [9]-[16]
-    '','','','','','','','','',  // [17]-[25]
-    v.vehiculo        || '',     // [26]
-    '','','','','','','',        // [27]-[33]
-    v.proveedor       || '',     // [34]
-    '','','','',                 // [35]-[38]
-    v.codigoAlternativo || '',   // [39]
-    '','','','',                 // [40]-[43]
-    v.codigoDespacho  || '',     // [44] Código de ruta
-    '','',                       // [45]-[46]
-    '','','','','',              // [47]-[51] Texto 1-5
-    etq,                         // [52] Texto 6
-    v.arrastre        || '',     // [53] Texto 7
-    [v.codigoDespacho, v.empleador, v.proveedor].filter(Boolean).join('-'), // [54] Texto 8
-    v.descripcionViaje       || '', // [55] Texto 9
-    v.segundoConductorNombre || '', // [56] Texto 10
-    v.rutaMaestra            || '', // [57] Texto 11
-    '','','','',                 // [58]-[61] Número 1-4
-    v.conductorEmail  || '',     // [62]
-    etq,                         // [63] Costo Asignación
-    '','',                       // [64]-[65]
-    v.rutaMaestra     || '',     // [66]
-    '','','','','','','','','','','','','', // [67]-[79]
-    emailUsuario,                // [80]
-    '','','','','','','','',     // [81]-[88]
-    emailUsuario,                // [89]
-    '','','','','','','','','',  // [90]-[98]
-    ''                           // [99]
-  ];
-}
-
-// ── Sidebar hamburger ──
+// ── Sidebar ──
 
 function abrirSidebar() {
   document.getElementById('sidebarOverlay').classList.add('open');
   document.getElementById('sidebarNavPanel').classList.add('open');
 }
-
 function cerrarSidebar() {
   document.getElementById('sidebarOverlay').classList.remove('open');
   document.getElementById('sidebarNavPanel').classList.remove('open');
 }
-
 function toggleSidebarSync() {
   const panel = document.getElementById('sbSyncPanel');
   const arrow = document.getElementById('sbSyncArrow');
@@ -715,15 +677,20 @@ function toggleSidebarSync() {
   panel.style.display = isOpen ? 'none' : 'block';
   if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
 }
-
-// ── Sync collapsible (main content) ──
-
 function toggleSyncPanel() {
   const panel = document.getElementById('syncPanelContent');
   const arrow = document.getElementById('syncToggleArrow');
   panel.classList.toggle('open');
   if (arrow) arrow.textContent = panel.classList.contains('open') ? '▲' : '▼';
 }
+function toggleSyncPanel2() {
+  const panel = document.getElementById('syncPanelContent2');
+  const arrow = document.getElementById('syncToggleArrow2');
+  panel.classList.toggle('open');
+  if (arrow) arrow.textContent = panel.classList.contains('open') ? '▲' : '▼';
+}
+
+// ── Sync + refrescar (Mejoras 6/14/19) ──
 
 async function syncViajesDatos(accion, badgeId, btnId) {
   const btn   = document.getElementById(btnId);
@@ -738,8 +705,8 @@ async function syncViajesDatos(accion, badgeId, btnId) {
       const nuevosDatos = await gasCall('getDatosMaestros');
       if (nuevosDatos.ok !== false) {
         window.DATOS = nuevosDatos;
-        refrescarTodosVehiculos();
-        mostrarToast('Datos actualizados correctamente');
+        refrescarFilasExistentes();
+        mostrarToast('Datos actualizados — los desplegables ahora tienen información nueva');
       }
     } else {
       if (badge) badge.textContent = '✗';
@@ -753,6 +720,54 @@ async function syncViajesDatos(accion, badgeId, btnId) {
   }
 }
 
+// Mejora 19: refrescar etiquetas preservando selección
+function refrescarFilasExistentes() {
+  document.querySelectorAll('#tripsTbody tr').forEach(tr => {
+    const idx  = Number(tr.dataset.idx);
+    const refs = filaRefs[idx];
+    if (!refs) return;
+
+    const msC = document.getElementById(`ms-costo-${idx}`);
+    const msI = document.getElementById(`ms-ingreso-${idx}`);
+    const prevCosto   = msC ? JSON.parse(msC.dataset.selected || '[]') : [];
+    const prevIngreso = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
+
+    const vCode = refs.veh?.getValue();
+    const pNombre = refs.prov?.getValue();
+
+    if (vCode) {
+      actualizarEtiquetasCosto(idx, vCode);
+      _restaurarMultiSelect(`ms-costo-${idx}`, prevCosto);
+    }
+    if (pNombre) {
+      actualizarEtiquetasIngreso(idx, pNombre);
+      _restaurarMultiSelect(`ms-ingreso-${idx}`, prevIngreso);
+    }
+  });
+}
+
+function _restaurarMultiSelect(msId, prevSelected) {
+  const ms = document.getElementById(msId);
+  if (!ms || !prevSelected.length) return;
+  ms.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    if (prevSelected.includes(cb.value)) cb.checked = true;
+  });
+  const pills = ms.querySelector('.multi-pills');
+  const ph    = ms.querySelector('.pills-placeholder');
+  const stillValid = prevSelected.filter(v =>
+    Array.from(ms.querySelectorAll('input[type="checkbox"]')).some(cb => cb.value === v)
+  );
+  ms.dataset.selected = JSON.stringify(stillValid);
+  if (pills && ph) {
+    // Rebuild pills with current item metadata
+    const items = Array.from(ms.querySelectorAll('label.multi-option')).map(lbl => {
+      const cb = lbl.querySelector('input');
+      return { etiqueta: cb?.value || '', vigenciaDesde: '', vigenciaHasta: '' };
+    });
+    renderPills(pills, ph, stillValid, ms, items);
+  }
+}
+
 // ── Toast ──
 
 function mostrarToast(msg) {
@@ -763,7 +778,7 @@ function mostrarToast(msg) {
   setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-// ── Cambiar contraseña (modal en viajes) ──
+// ── Cambiar contraseña ──
 
 function abrirCambiarPassModal() {
   cerrarSidebar();
@@ -772,11 +787,9 @@ function abrirCambiarPassModal() {
   document.getElementById('cpMsg').className   = '';
   document.getElementById('modalCambiarPass').classList.add('active');
 }
-
 function cerrarCambiarPassModal() {
   document.getElementById('modalCambiarPass').classList.remove('active');
 }
-
 async function submitCambiarPass(e) {
   e.preventDefault();
   const actual   = document.getElementById('cpActual').value;
@@ -784,63 +797,22 @@ async function submitCambiarPass(e) {
   const confirma = document.getElementById('cpConfirma').value;
   const btn      = document.getElementById('btnCambiarPassViajes');
   const msgEl    = document.getElementById('cpMsg');
-  msgEl.textContent = '';
-  msgEl.className   = '';
-
-  if (nuevo !== confirma) {
-    msgEl.textContent = 'Las contraseñas nuevas no coinciden.';
-    msgEl.className   = 'error-msg';
-    return;
-  }
+  msgEl.textContent = ''; msgEl.className = '';
+  if (nuevo !== confirma) { msgEl.textContent = 'Las contraseñas nuevas no coinciden.'; msgEl.className = 'error-msg'; return; }
   setLoading(btn, true);
   try {
     const res = await gasCall('changePassword', { passwordActual: actual, passwordNuevo: nuevo });
-    if (res.ok) {
-      cerrarCambiarPassModal();
-      mostrarToast('Contraseña actualizada correctamente');
-    } else {
-      msgEl.textContent = res.error || 'No se pudo cambiar la contraseña.';
-      msgEl.className   = 'error-msg';
-    }
+    if (res.ok) { cerrarCambiarPassModal(); mostrarToast('Contraseña actualizada correctamente'); }
+    else { msgEl.textContent = res.error || 'No se pudo cambiar la contraseña.'; msgEl.className = 'error-msg'; }
   } catch(err) {
-    msgEl.textContent = 'Error de conexión.';
-    msgEl.className   = 'error-msg';
+    msgEl.textContent = 'Error de conexión.'; msgEl.className = 'error-msg';
   } finally {
     setLoading(btn, false);
   }
 }
 
-// Cerrar dropdowns al hacer scroll (evita que queden flotando)
+// Cerrar dropdowns al hacer scroll
 document.addEventListener('scroll', function() {
   document.querySelectorAll('.dropdown-list.open').forEach(el => el.classList.remove('open'));
   document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
 }, { capture: true, passive: true });
-
-function getHeadersExcel() {
-  return [
-    'Fecha Maxima de Entrega','Nombre Plan','Esquema','Código de despacho',
-    'Unidades_1','Unidades_2','Unidades_3','Prioridad','Código de dirección',
-    'Nombre dirección','Nombre cliente','Tipo','Dirección 1','Referencias',
-    'Descripción','Comuna','Provincia','Región','País','Código Postal',
-    'Latitud','Longitud','Tiempo de servicio','Inicio Ventana 1','Fin Ventana 1',
-    'Características','Asignación vehículo','Telefono de Contacto','Email de Contacto',
-    'Unidades del artículo','Código del artículo','Descripción del artículo',
-    'Exclusividad','Posicion','Proveedor','Inicio ventana 2','Fin ventana 2',
-    'Código cliente','Nombre de contacto','Código Alternativo',
-    'Mail aprobar ruta','Mail iniciar ruta','Mail en camino a direccion',
-    'Mail entrega finalizada','Código de ruta','Número de viaje','Tipo Unidad',
-    'Texto 1','Texto 2','Texto 3','Texto 4','Texto 5','Texto 6','Texto 7',
-    'Texto 8','Texto 9','Texto 10','Texto 11','Número 1','Número 2','Número 3',
-    'Número 4','Correo Conductor','Costo Asignación','Columna dummy',
-    'Fecha Facturación','Ruta Maestra','Descripción Despacho',
-    'Tel contacto ruta aprobada','Tel contacto ruta iniciada',
-    'Tel contacto cerca del lugar','Tel contacto entrega',
-    'Código zona de ventas','Unidades requeridas por item','Tag de Busqueda',
-    'Fecha de proceso','Folio','Orden de compra','Nombre 2do Contacto',
-    'Teléfono 2do Contacto','Email 2do Contacto','Categoría','url','token',
-    'url con token','Unidades_4','Tipo de orden','Paquete de datos',
-    'Código proveedor','Texto 12','Texto 13','Texto 14','Texto 15','Texto 16',
-    'Texto 17','Texto 18','Texto 19','Texto 20','Código Empleador',
-    'Prioridad de Secuencia'
-  ];
-}

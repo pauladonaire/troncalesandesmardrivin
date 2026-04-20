@@ -20,6 +20,7 @@ function doPost(e) {
       'syncManualSocios':      () => syncManualSocios(token),
       'crearPlanDrivin':       () => crearPlanDrivin(token, data.planDatos),
       'subirExcelADrive':      () => subirExcelADrive(token, data.base64, data.nombreArchivo, data.viajes, data.planDatos),
+      'crearPlanillaViajes':   () => crearPlanillaViajes(token, data.viajes, data.planDatos),
       'getUsuarios':           () => getUsuarios(token),
       'createUsuario':         () => createUsuario(token, data.usuario),
       'updateUsuario':         () => updateUsuario(token, data.emailTarget, data.datos),

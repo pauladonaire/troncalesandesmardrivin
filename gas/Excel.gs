@@ -5,6 +5,75 @@
 // ============================================================
 
 /**
+ * Crea una planilla Google Sheets nativa en Drive y registra viajes en historial.
+ * Reemplaza la generación de Excel desde el frontend (Mejora 17).
+ */
+function crearPlanillaViajes(token, viajes, planDatos) {
+  const session = validateSession(token);
+  if (!session) throw new Error('Sesión inválida o expirada');
+  try {
+    var nombre = ('Troncales_' + planDatos.nombre + '_' + planDatos.fecha)
+      .replace(/[\/\\?%*:|"<>]/g, '_');
+
+    var ss    = SpreadsheetApp.create(nombre);
+    var ssId  = ss.getId();
+    var archivo = DriveApp.getFileById(ssId);
+    var folder  = DriveApp.getFolderById(CONFIG.DRIVE.FOLDER_ID);
+    folder.addFile(archivo);
+    try { DriveApp.getRootFolder().removeFile(archivo); } catch(ignore) {}
+
+    var hoja    = ss.getActiveSheet();
+    hoja.setName('Viajes');
+    var headers = getHeadersExcel_();
+    hoja.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    if (viajes && viajes.length) {
+      var rows = viajes.map(function(v) {
+        return construirFilaViaje_(v, planDatos, session.email);
+      });
+      hoja.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+    hoja.autoResizeColumns(1, headers.length);
+    archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    registrarViajesEnSheet_(viajes || [], planDatos, session.email);
+
+    return { ok: true, fileUrl: archivo.getUrl(), fileId: ssId };
+  } catch(e) {
+    console.error('crearPlanillaViajes error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
+function getHeadersExcel_() {
+  return [
+    'Fecha Maxima de Entrega','Nombre Plan','Esquema','Código de despacho',
+    'Unidades_1','Unidades_2','Unidades_3','Prioridad','Código de dirección',
+    'Nombre dirección','Nombre cliente','Tipo','Dirección 1','Referencias',
+    'Descripción','Comuna','Provincia','Región','País','Código Postal',
+    'Latitud','Longitud','Tiempo de servicio','Inicio Ventana 1','Fin Ventana 1',
+    'Características','Asignación vehículo','Telefono de Contacto','Email de Contacto',
+    'Unidades del artículo','Código del artículo','Descripción del artículo',
+    'Exclusividad','Posicion','Proveedor','Inicio ventana 2','Fin ventana 2',
+    'Código cliente','Nombre de contacto','Código Alternativo',
+    'Mail aprobar ruta','Mail iniciar ruta','Mail en camino a direccion',
+    'Mail entrega finalizada','Código de ruta','Número de viaje','Tipo Unidad',
+    'Texto 1','Texto 2','Texto 3','Texto 4','Texto 5','Texto 6','Texto 7',
+    'Texto 8','Texto 9','Texto 10','Texto 11','Número 1','Número 2','Número 3',
+    'Número 4','Correo Conductor','Costo Asignación','Columna dummy',
+    'Fecha Facturación','Ruta Maestra','Descripción Despacho',
+    'Tel contacto ruta aprobada','Tel contacto ruta iniciada',
+    'Tel contacto cerca del lugar','Tel contacto entrega',
+    'Código zona de ventas','Unidades requeridas por item','Tag de Busqueda',
+    'Fecha de proceso','Folio','Orden de compra','Nombre 2do Contacto',
+    'Teléfono 2do Contacto','Email 2do Contacto','Categoría','url','token',
+    'url con token','Unidades_4','Tipo de orden','Paquete de datos',
+    'Código proveedor','Texto 12','Texto 13','Texto 14','Texto 15','Texto 16',
+    'Texto 17','Texto 18','Texto 19','Texto 20','Código Empleador',
+    'Prioridad de Secuencia'
+  ];
+}
+
+/**
  * Sube el Excel a Drive y registra los viajes en el Sheet de histórico.
  * @param {string} token
  * @param {string} base64 - Contenido del .xlsx en base64
