@@ -122,36 +122,27 @@ function sheetsAppend_(spreadsheetId, range, values) {
 }
 
 /**
- * Sube un archivo XLSX a Google Drive via multipart upload.
+ * Sube un archivo XLSX a Google Drive usando DriveApp nativo.
+ * Usa permisos del dueño del script (no de la SA) para evitar el error 403
+ * "Service Accounts do not have storage quota".
  * @returns {{ id: string, webViewLink: string }}
  */
 function driveUploadFile_(nombre, base64, folderId) {
-  const token    = getServiceAccountToken_(['https://www.googleapis.com/auth/drive']);
-  const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  const boundary = 'troncales_' + Utilities.getUuid().replace(/-/g, '');
-  const metadata = JSON.stringify({ name: nombre, parents: [folderId] });
-
-  const body = '--' + boundary + '\r\n'
-             + 'Content-Type: application/json; charset=UTF-8\r\n\r\n'
-             + metadata + '\r\n'
-             + '--' + boundary + '\r\n'
-             + 'Content-Type: ' + mimeType + '\r\n'
-             + 'Content-Transfer-Encoding: base64\r\n\r\n'
-             + base64 + '\r\n'
-             + '--' + boundary + '--';
-
-  const resp = UrlFetchApp.fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
-    {
-      method:      'post',
-      contentType: 'multipart/related; boundary=' + boundary,
-      headers:     { Authorization: 'Bearer ' + token },
-      payload:     body,
-      muteHttpExceptions: true
-    }
-  );
-
-  const data = JSON.parse(resp.getContentText());
-  if (data.error) throw new Error('driveUploadFile_: ' + JSON.stringify(data.error));
-  return data;
+  try {
+    const bytes   = Utilities.base64Decode(base64);
+    const blob    = Utilities.newBlob(
+      bytes,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      nombre
+    );
+    const folder  = DriveApp.getFolderById(folderId);
+    const archivo = folder.createFile(blob);
+    archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return {
+      id:          archivo.getId(),
+      webViewLink: archivo.getUrl()
+    };
+  } catch(e) {
+    throw new Error('driveUploadFile_: ' + e.message);
+  }
 }

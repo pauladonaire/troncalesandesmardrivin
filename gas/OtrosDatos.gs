@@ -30,13 +30,13 @@ function getArrastres() {
 
 function getEsquemasCostos() {
   const cfg  = CONFIG.SHEETS.OTROS_DATOS;
-  const rows = sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_COSTOS);
+  const rows = sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_COSTOS + '!A:AA');
   return rows || [];
 }
 
 function getEsquemasIngresos() {
   const cfg  = CONFIG.SHEETS.OTROS_DATOS;
-  const rows = sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_INGRESOS);
+  const rows = sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_INGRESOS + '!A:AA');
   return rows || [];
 }
 

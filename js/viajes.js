@@ -36,6 +36,21 @@ function inicializarPaso1() {
   renderSteps(1);
   document.getElementById('paso1').classList.add('active');
 
+  const isAdmin     = ['ADMIN_GENERAL', 'ADMIN_TRAFICO'].includes(SESSION.rol);
+  const isSuperAdmin = SESSION.rol === 'ADMIN_GENERAL';
+
+  if (isAdmin) {
+    document.getElementById('secSyncViajes').style.display = 'block';
+    const sbSync = document.getElementById('sbSyncItems');
+    if (sbSync) sbSync.style.display = 'block';
+  }
+  if (isSuperAdmin) {
+    const sbAdmin = document.getElementById('sbAdminLink');
+    const sbDiv   = document.getElementById('sbAdminDivider');
+    if (sbAdmin) sbAdmin.style.display = 'flex';
+    if (sbDiv)   sbDiv.style.display   = 'block';
+  }
+
   if (SESSION.rol === 'OPERACION_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min      = hoy;
@@ -192,7 +207,7 @@ function crearDropdownDir(idx) {
   return crearDropdownBusqueda({
     inputClass:  'f-dir',
     placeholder: 'Buscar dirección... *',
-    items:       window.DATOS.direcciones || [],
+    itemsFn:     () => window.DATOS.direcciones || [],
     labelFn:     d => `[${d.code}] — ${d.name} | ${d.address1}, ${d.city}, ${d.state}`,
     valueFn:     d => d.code
   });
@@ -202,14 +217,14 @@ function crearDropdownConductor(idx, tipo) {
   return crearDropdownBusqueda({
     inputClass:  tipo === 'cond' ? 'f-conductor' : 'f-segundo',
     placeholder: tipo === 'cond' ? 'Buscar conductor... *' : 'Buscar 2do conductor...',
-    items:       window.DATOS.tripulantes || [],
+    itemsFn:     () => window.DATOS.tripulantes || [],
     labelFn:     t => t.nombre_completo,
     valueFn:     t => t.nombre_completo,
     extraFn:     t => JSON.stringify({ nombre: t.nombre_completo, email: t.email })
   });
 }
 
-function crearDropdownBusqueda({ inputClass, placeholder, items, labelFn, valueFn, extraFn }) {
+function crearDropdownBusqueda({ inputClass, placeholder, itemsFn, labelFn, valueFn, extraFn }) {
   const wrap  = document.createElement('div');
   wrap.className = 'dropdown-wrap';
 
@@ -224,6 +239,7 @@ function crearDropdownBusqueda({ inputClass, placeholder, items, labelFn, valueF
   list.className = 'dropdown-list';
 
   function poblar(q) {
+    const items = itemsFn();
     list.innerHTML = '';
     const filtrados = q
       ? items.filter(item => labelFn(item).toLowerCase().includes(q.toLowerCase()))
@@ -251,13 +267,21 @@ function crearDropdownBusqueda({ inputClass, placeholder, items, labelFn, valueF
     });
   }
 
-  input.addEventListener('focus', () => { poblar(input.value); list.classList.add('open'); });
-  input.addEventListener('input', () => { poblar(input.value); list.classList.add('open'); });
+  input.addEventListener('focus', () => { poblar(input.value); abrirDropdown(input, list); });
+  input.addEventListener('input', () => { poblar(input.value); abrirDropdown(input, list); });
   input.addEventListener('blur',  () => setTimeout(() => list.classList.remove('open'), 160));
 
   wrap.appendChild(input);
   wrap.appendChild(list);
   return wrap;
+}
+
+function abrirDropdown(inputEl, listaEl) {
+  const rect = inputEl.getBoundingClientRect();
+  listaEl.style.top   = (rect.bottom + 2) + 'px';
+  listaEl.style.left  = rect.left + 'px';
+  listaEl.style.width = Math.max(rect.width, 220) + 'px';
+  listaEl.classList.add('open');
 }
 
 // ── Vehículos con exclusividad ──
@@ -391,7 +415,15 @@ function crearMultiSelect(idx, tipo, items) {
 
   pills.addEventListener('click', e => {
     if (e.target.classList.contains('pill-remove')) return;
-    dropdown.classList.toggle('open');
+    if (dropdown.classList.contains('open')) {
+      dropdown.classList.remove('open');
+    } else {
+      const rect = pills.getBoundingClientRect();
+      dropdown.style.top   = (rect.bottom + 2) + 'px';
+      dropdown.style.left  = rect.left + 'px';
+      dropdown.style.width = rect.width + 'px';
+      dropdown.classList.add('open');
+    }
   });
   document.addEventListener('click', e => {
     if (!wrap.contains(e.target)) dropdown.classList.remove('open');
@@ -663,6 +695,126 @@ function mapearViaje(v, p, emailUsuario) {
     ''                           // [99]
   ];
 }
+
+// ── Sidebar hamburger ──
+
+function abrirSidebar() {
+  document.getElementById('sidebarOverlay').classList.add('open');
+  document.getElementById('sidebarNavPanel').classList.add('open');
+}
+
+function cerrarSidebar() {
+  document.getElementById('sidebarOverlay').classList.remove('open');
+  document.getElementById('sidebarNavPanel').classList.remove('open');
+}
+
+function toggleSidebarSync() {
+  const panel = document.getElementById('sbSyncPanel');
+  const arrow = document.getElementById('sbSyncArrow');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
+}
+
+// ── Sync collapsible (main content) ──
+
+function toggleSyncPanel() {
+  const panel = document.getElementById('syncPanelContent');
+  const arrow = document.getElementById('syncToggleArrow');
+  panel.classList.toggle('open');
+  if (arrow) arrow.textContent = panel.classList.contains('open') ? '▲' : '▼';
+}
+
+async function syncViajesDatos(accion, badgeId, btnId) {
+  const btn   = document.getElementById(btnId);
+  const badge = document.getElementById(badgeId);
+  if (!btn) return;
+  setLoading(btn, true);
+  if (badge) badge.textContent = '';
+  try {
+    const res = await gasCall(accion);
+    if (res.ok) {
+      if (badge) badge.textContent = '✓ ' + (res.count || '');
+      const nuevosDatos = await gasCall('getDatosMaestros');
+      if (nuevosDatos.ok !== false) {
+        window.DATOS = nuevosDatos;
+        refrescarTodosVehiculos();
+        mostrarToast('Datos actualizados correctamente');
+      }
+    } else {
+      if (badge) badge.textContent = '✗';
+      mostrarToast('Error: ' + (res.error || 'No se pudo sincronizar'));
+    }
+  } catch(e) {
+    if (badge) badge.textContent = '✗';
+    mostrarToast('Error de conexión');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+// ── Toast ──
+
+function mostrarToast(msg) {
+  const toast = document.getElementById('toastNotif');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ── Cambiar contraseña (modal en viajes) ──
+
+function abrirCambiarPassModal() {
+  cerrarSidebar();
+  document.getElementById('formCambiarPass').reset();
+  document.getElementById('cpMsg').textContent = '';
+  document.getElementById('cpMsg').className   = '';
+  document.getElementById('modalCambiarPass').classList.add('active');
+}
+
+function cerrarCambiarPassModal() {
+  document.getElementById('modalCambiarPass').classList.remove('active');
+}
+
+async function submitCambiarPass(e) {
+  e.preventDefault();
+  const actual   = document.getElementById('cpActual').value;
+  const nuevo    = document.getElementById('cpNuevo').value;
+  const confirma = document.getElementById('cpConfirma').value;
+  const btn      = document.getElementById('btnCambiarPassViajes');
+  const msgEl    = document.getElementById('cpMsg');
+  msgEl.textContent = '';
+  msgEl.className   = '';
+
+  if (nuevo !== confirma) {
+    msgEl.textContent = 'Las contraseñas nuevas no coinciden.';
+    msgEl.className   = 'error-msg';
+    return;
+  }
+  setLoading(btn, true);
+  try {
+    const res = await gasCall('changePassword', { passwordActual: actual, passwordNuevo: nuevo });
+    if (res.ok) {
+      cerrarCambiarPassModal();
+      mostrarToast('Contraseña actualizada correctamente');
+    } else {
+      msgEl.textContent = res.error || 'No se pudo cambiar la contraseña.';
+      msgEl.className   = 'error-msg';
+    }
+  } catch(err) {
+    msgEl.textContent = 'Error de conexión.';
+    msgEl.className   = 'error-msg';
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+// Cerrar dropdowns al hacer scroll (evita que queden flotando)
+document.addEventListener('scroll', function() {
+  document.querySelectorAll('.dropdown-list.open').forEach(el => el.classList.remove('open'));
+  document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
+}, { capture: true, passive: true });
 
 function getHeadersExcel() {
   return [

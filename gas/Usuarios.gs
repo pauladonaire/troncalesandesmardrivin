@@ -9,22 +9,32 @@
  */
 function getUsuarios(token) {
   const session = validateSession(token);
-  if (!session) throw new Error('Sesión inválida o expirada');
-  if (session.rol !== 'ADMIN_GENERAL') throw new Error('Sin permisos para esta operación');
+  if (!session) return { ok: false, error: 'Sesión inválida' };
+  if (session.rol !== 'ADMIN_GENERAL') return { ok: false, error: 'Sin permisos' };
 
-  const rows = sheetsRead_(CONFIG.SHEETS.USUARIOS.id, CONFIG.SHEETS.USUARIOS.tab);
-  if (rows.length < 2) return [];
+  try {
+    const values = sheetsRead_(
+      CONFIG.SHEETS.USUARIOS.id,
+      CONFIG.SHEETS.USUARIOS.tab + '!A:H'
+    );
+    if (!values || values.length <= 1) return { ok: true, usuarios: [] };
 
-  return rows.slice(1).map(function(r) {
-    return {
-      email:            r[0] || '',
-      nombre_completo:  r[1] || '',
-      rol:              r[4] || '',
-      activo:           String(r[5]).toLowerCase() === 'true' || r[5] === 'TRUE',
-      fecha_creacion:   r[6] || '',
-      fecha_modificacion: r[7] || ''
-    };
-  });
+    const usuarios = values.slice(1).map(function(row) {
+      return {
+        email:              row[0] || '',
+        nombre_completo:    row[1] || '',
+        rol:                row[4] || '',
+        activo:             row[5] === 'TRUE' || row[5] === true || String(row[5]).toLowerCase() === 'true',
+        fecha_creacion:     row[6] || '',
+        fecha_modificacion: row[7] || ''
+      };
+    }).filter(function(u) { return u.email !== ''; });
+
+    return { ok: true, usuarios: usuarios };
+  } catch(e) {
+    console.error('getUsuarios error:', e.message);
+    return { ok: false, error: 'Error al leer usuarios: ' + e.message };
+  }
 }
 
 /**

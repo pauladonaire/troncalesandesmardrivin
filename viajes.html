@@ -12,6 +12,7 @@
 
     <header class="app-header">
       <div class="header-brand">
+        <button class="btn-menu" onclick="abrirSidebar()" title="Menú">☰</button>
         <a href="dashboard.html" style="text-decoration:none">
           <span class="brand-name">TRONCALES</span>
         </a>
@@ -35,6 +36,50 @@
 
         <!-- Contenido principal -->
         <div id="contenido" style="display:none">
+
+          <!-- Sync datos maestros (solo admins) -->
+          <div id="secSyncViajes" class="sync-collapsible-section" style="display:none">
+            <button class="sync-toggle-btn" onclick="toggleSyncPanel()">
+              <span>↻ Actualizar datos maestros</span>
+              <span id="syncToggleArrow">▼</span>
+            </button>
+            <div class="sync-panel-content" id="syncPanelContent">
+              <div class="sync-grid-inline">
+                <div class="sync-inline-item">
+                  <span class="sync-inline-label">Direcciones</span>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="sync-inline-badge" id="badgeSyncDir"></span>
+                    <button class="btn btn-secondary btn-sm" id="btnSyncVDir"
+                      onclick="syncViajesDatos('syncManualDirecciones','badgeSyncDir','btnSyncVDir')">↻</button>
+                  </div>
+                </div>
+                <div class="sync-inline-item">
+                  <span class="sync-inline-label">Conductores</span>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="sync-inline-badge" id="badgeSyncCond"></span>
+                    <button class="btn btn-secondary btn-sm" id="btnSyncVCond"
+                      onclick="syncViajesDatos('syncManualTripulantes','badgeSyncCond','btnSyncVCond')">↻</button>
+                  </div>
+                </div>
+                <div class="sync-inline-item">
+                  <span class="sync-inline-label">Vehículos</span>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="sync-inline-badge" id="badgeSyncVeh"></span>
+                    <button class="btn btn-secondary btn-sm" id="btnSyncVVeh"
+                      onclick="syncViajesDatos('syncManualFlota','badgeSyncVeh','btnSyncVVeh')">↻</button>
+                  </div>
+                </div>
+                <div class="sync-inline-item">
+                  <span class="sync-inline-label">Socios</span>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="sync-inline-badge" id="badgeSyncSoc"></span>
+                    <button class="btn btn-secondary btn-sm" id="btnSyncVSoc"
+                      onclick="syncViajesDatos('syncManualSocios','badgeSyncSoc','btnSyncVSoc')">↻</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- Step indicator -->
           <div class="step-indicator">
@@ -219,6 +264,88 @@
     <span class="spinner"></span>
     <span>Generando Excel y subiendo a Drive...</span>
   </div>
+
+  <!-- Sidebar overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="cerrarSidebar()"></div>
+
+  <!-- Sidebar nav panel -->
+  <nav class="sidebar-nav-panel" id="sidebarNavPanel">
+    <div class="sidebar-header">
+      <span class="brand-name" style="font-size:13px">TRONCALES</span>
+      <button class="sidebar-close" onclick="cerrarSidebar()">✕</button>
+    </div>
+    <div class="sidebar-items">
+      <a href="dashboard.html" class="sidebar-item">← Dashboard</a>
+      <a href="viajes.html" class="sidebar-item">🚛 Generar Viajes</a>
+      <div class="sidebar-divider"></div>
+      <div id="sbSyncItems" style="display:none">
+        <button class="sidebar-item" onclick="toggleSidebarSync()" style="justify-content:space-between;width:100%">
+          <span>🔄 Actualizar Datos</span><span id="sbSyncArrow">▼</span>
+        </button>
+        <div class="sidebar-sync-panel" id="sbSyncPanel" style="display:none">
+          <div class="sidebar-sync-row">
+            <span class="sidebar-sync-label">Direcciones</span>
+            <div><span class="sidebar-sync-badge" id="sbBadgeDir"></span>
+              <button class="btn btn-secondary btn-sm" id="sbBtnDir"
+                onclick="syncViajesDatos('syncManualDirecciones','sbBadgeDir','sbBtnDir')">↻</button></div>
+          </div>
+          <div class="sidebar-sync-row">
+            <span class="sidebar-sync-label">Conductores</span>
+            <div><span class="sidebar-sync-badge" id="sbBadgeCond"></span>
+              <button class="btn btn-secondary btn-sm" id="sbBtnCond"
+                onclick="syncViajesDatos('syncManualTripulantes','sbBadgeCond','sbBtnCond')">↻</button></div>
+          </div>
+          <div class="sidebar-sync-row">
+            <span class="sidebar-sync-label">Vehículos</span>
+            <div><span class="sidebar-sync-badge" id="sbBadgeVeh"></span>
+              <button class="btn btn-secondary btn-sm" id="sbBtnVeh"
+                onclick="syncViajesDatos('syncManualFlota','sbBadgeVeh','sbBtnVeh')">↻</button></div>
+          </div>
+          <div class="sidebar-sync-row">
+            <span class="sidebar-sync-label">Socios</span>
+            <div><span class="sidebar-sync-badge" id="sbBadgeSoc"></span>
+              <button class="btn btn-secondary btn-sm" id="sbBtnSoc"
+                onclick="syncViajesDatos('syncManualSocios','sbBadgeSoc','sbBtnSoc')">↻</button></div>
+          </div>
+        </div>
+        <div class="sidebar-divider"></div>
+      </div>
+      <a href="admin.html" class="sidebar-item" id="sbAdminLink" style="display:none">👥 Gestión de Usuarios</a>
+      <div class="sidebar-divider" id="sbAdminDivider" style="display:none"></div>
+      <button class="sidebar-item" onclick="abrirCambiarPassModal()">🔑 Cambiar Contraseña</button>
+      <div class="sidebar-divider"></div>
+      <button class="sidebar-item danger" onclick="handleLogout()">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <!-- Modal cambiar contraseña -->
+  <div class="modal-overlay" id="modalCambiarPass">
+    <div class="modal">
+      <h3 class="modal-title">Cambiar Contraseña</h3>
+      <form id="formCambiarPass" onsubmit="submitCambiarPass(event)">
+        <div class="form-group">
+          <label>Contraseña actual</label>
+          <input type="password" id="cpActual" required autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label>Nueva contraseña</label>
+          <input type="password" id="cpNuevo" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>Confirmar nueva contraseña</label>
+          <input type="password" id="cpConfirma" required autocomplete="new-password">
+        </div>
+        <div id="cpMsg"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="cerrarCambiarPassModal()">Cancelar</button>
+          <button type="submit" id="btnCambiarPassViajes" class="btn btn-primary">Actualizar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toastNotif"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="js/api.js"></script>
