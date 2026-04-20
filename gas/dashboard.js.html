@@ -1,0 +1,166 @@
+<!-- ============================================================
+     ARCHIVO GAS: dashboard.js.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "dashboard.js" y pegar este contenido
+     ============================================================ -->
+<script>
+  var SESSION = null;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Leer sesión del servidor (pasada via template) o del localStorage
+    try { SESSION = JSON.parse(document.getElementById('sessionData').textContent); } catch(e) {}
+    if (!SESSION) SESSION = getSession();
+    if (!SESSION || !getToken()) { redirectToLogin(); return; }
+
+    renderUserInfo();
+    initNavigation();
+    showPanel('panel-inicio');
+  });
+
+  function renderUserInfo() {
+    var el = document.getElementById('sidebarUserName');
+    if (el) el.textContent = SESSION.nombre_completo || SESSION.email;
+    var roleEl = document.getElementById('sidebarUserRole');
+    if (roleEl) roleEl.textContent = formatRole(SESSION.rol);
+    var avatarEl = document.getElementById('sidebarAvatar');
+    if (avatarEl) avatarEl.textContent = SESSION.iniciales || '?';
+  }
+
+  function formatRole(rol) {
+    var map = {
+      'ADMIN_GENERAL':      'Admin General',
+      'ADMIN_TRAFICO':      'Admin Tráfico',
+      'OPERACION_TRAFICO':  'Operación Tráfico'
+    };
+    return map[rol] || rol;
+  }
+
+  // ── Navegación lateral ──────────────────────────────
+  function initNavigation() {
+    var navItems = document.querySelectorAll('.nav-item[data-panel]');
+    navItems.forEach(function(item) {
+      item.addEventListener('click', function() {
+        var panel = this.getAttribute('data-panel');
+        showPanel(panel);
+        navItems.forEach(function(n) { n.classList.remove('active'); });
+        this.classList.add('active');
+      });
+    });
+
+    // Mostrar/ocultar secciones según rol
+    if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO') {
+      document.querySelectorAll('.nav-requires-admin').forEach(function(el) { hideEl(el); });
+    }
+    if (SESSION.rol !== 'ADMIN_GENERAL') {
+      document.querySelectorAll('.nav-requires-superadmin').forEach(function(el) { hideEl(el); });
+    }
+
+    // Botón logout
+    var logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+    // Ir a Viajes
+    var viajesBtn = document.getElementById('btnGoViajes');
+    if (viajesBtn) viajesBtn.addEventListener('click', function() { navigateTo('viajes'); });
+  }
+
+  function showPanel(panelId) {
+    document.querySelectorAll('.panel-content').forEach(function(p) {
+      p.classList.add('d-none');
+    });
+    var target = document.getElementById(panelId);
+    if (target) target.classList.remove('d-none');
+
+    // Nombre del panel en header
+    var headerTitle = document.getElementById('pageHeaderTitle');
+    if (headerTitle) {
+      var titles = {
+        'panel-inicio':       'Inicio',
+        'panel-datos':        'Actualizar Datos',
+        'panel-password':     'Cambiar Contraseña',
+        'panel-usuarios':     'Gestión de Usuarios'
+      };
+      headerTitle.textContent = titles[panelId] || 'Troncales';
+    }
+  }
+
+  // ── Sincronización manual ───────────────────────────
+  function initSyncButtons() {
+    var syncs = [
+      { btn: 'btnSyncDir',    fn: 'syncManualDirecciones', badge: 'badgeDir',  label: 'Direcciones' },
+      { btn: 'btnSyncTri',    fn: 'syncManualTripulantes', badge: 'badgeTri',  label: 'Conductores' },
+      { btn: 'btnSyncFlo',    fn: 'syncManualFlota',       badge: 'badgeFlo',  label: 'Vehículos' },
+      { btn: 'btnSyncSoc',    fn: 'syncManualSocios',      badge: 'badgeSoc',  label: 'Socios' }
+    ];
+
+    syncs.forEach(function(s) {
+      var btn   = document.getElementById(s.btn);
+      var badge = document.getElementById(s.badge);
+      if (!btn) return;
+
+      btn.addEventListener('click', async function() {
+        setLoading(btn, true);
+        if (badge) badge.classList.remove('visible');
+        try {
+          var res = await gasCall(s.fn, getToken());
+          if (res && res.ok) {
+            if (badge) {
+              badge.textContent = '✓ ' + res.count + ' ' + s.label.toLowerCase();
+              badge.classList.add('visible');
+            }
+          }
+        } catch(err) {
+          alert('Error al sincronizar ' + s.label + ': ' + (err.message || err));
+        } finally {
+          setLoading(btn, false);
+        }
+      });
+    });
+  }
+
+  // ── Cambio de contraseña ────────────────────────────
+  function initPasswordForm() {
+    var form    = document.getElementById('passForm');
+    var btnPass = document.getElementById('btnCambiarPass');
+    var alertEl = document.getElementById('passAlert');
+    if (!form) return;
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var actual  = document.getElementById('passActual').value;
+      var nueva   = document.getElementById('passNueva').value;
+      var confirm = document.getElementById('passConfirm').value;
+
+      if (nueva !== confirm) {
+        showAlert(alertEl, 'Las contraseñas nuevas no coinciden.', 'danger');
+        return;
+      }
+      if (nueva.length < 6) {
+        showAlert(alertEl, 'La contraseña debe tener al menos 6 caracteres.', 'danger');
+        return;
+      }
+
+      hideEl(alertEl);
+      setLoading(btnPass, true);
+      try {
+        var res = await gasCall('changePassword', getToken(), actual, nueva);
+        if (res && res.ok) {
+          showAlert(alertEl, 'Contraseña actualizada correctamente.', 'success');
+          form.reset();
+        } else {
+          showAlert(alertEl, (res && res.error) || 'Error al cambiar la contraseña.', 'danger');
+        }
+      } catch(err) {
+        showAlert(alertEl, 'Error: ' + (err.message || err), 'danger');
+      } finally {
+        setLoading(btnPass, false);
+      }
+    });
+  }
+
+  // Llamar inicializadores una vez cargado el DOM
+  window.addEventListener('load', function() {
+    initSyncButtons();
+    initPasswordForm();
+  });
+</script>

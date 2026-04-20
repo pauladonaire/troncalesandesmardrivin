@@ -1,0 +1,381 @@
+<!-- ============================================================
+     ARCHIVO GAS: viajes.css.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "viajes.css" y pegar este contenido
+     ============================================================ -->
+<style>
+  /* ── Pasos ────────────────────────────────────────── */
+  .paso-section {
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .paso-section.visible { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Step indicator ───────────────────────────────── */
+  .steps-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 24px;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  .step-item.active { color: var(--color-primary); }
+  .step-item.done   { color: var(--color-success); }
+
+  .step-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .step-item.active .step-num { border-color: var(--color-primary); color: var(--color-primary); }
+  .step-item.done   .step-num { border-color: var(--color-success); background: var(--color-success); color: var(--color-black); }
+
+  .step-connector {
+    flex: 1;
+    height: 2px;
+    background: var(--color-border);
+    margin: 0 12px;
+    max-width: 40px;
+  }
+
+  /* ── Plan form ────────────────────────────────────── */
+  .plan-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  /* ── Cantidad de viajes ───────────────────────────── */
+  .cantidad-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .cantidad-row .form-group { flex: 0 0 160px; }
+
+  /* ── Tabla de viajes ──────────────────────────────── */
+  .viajes-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  .viajes-table {
+    border-collapse: collapse;
+    font-size: 12px;
+    min-width: 1800px;
+    width: 100%;
+  }
+
+  .viajes-table th {
+    background: var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 8px 6px;
+    white-space: nowrap;
+    text-align: left;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .viajes-table th.required::after {
+    content: ' *';
+    color: var(--color-danger);
+  }
+
+  .viajes-table td {
+    padding: 4px 4px;
+    border-bottom: 1px solid rgba(46,61,80,0.5);
+    vertical-align: top;
+  }
+
+  .viajes-table tr:last-child td { border-bottom: none; }
+
+  .row-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin: 3px auto;
+  }
+
+  /* ── Inputs dentro de la tabla ────────────────────── */
+  .viajes-table .form-control {
+    padding: 5px 8px;
+    font-size: 12px;
+    min-width: 90px;
+  }
+
+  .viajes-table .form-control.error {
+    border-color: var(--color-danger);
+    background: rgba(232,64,64,0.06);
+  }
+
+  /* ── Dropdown con búsqueda ────────────────────────── */
+  .searchable-dropdown {
+    position: relative;
+    min-width: 140px;
+  }
+
+  .searchable-dropdown .sd-input {
+    width: 100%;
+    padding: 5px 8px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-white);
+    font-size: 12px;
+    outline: none;
+    cursor: text;
+  }
+
+  .searchable-dropdown .sd-input:focus { border-color: var(--color-primary); }
+  .searchable-dropdown .sd-input.error { border-color: var(--color-danger); }
+
+  .searchable-dropdown .sd-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    right: 0;
+    min-width: 280px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius);
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 500;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+
+  .searchable-dropdown .sd-list.open { display: block; }
+
+  .searchable-dropdown .sd-option {
+    padding: 7px 10px;
+    font-size: 12px;
+    color: var(--color-white);
+    cursor: pointer;
+    border-bottom: 1px solid rgba(46,61,80,0.4);
+    line-height: 1.4;
+  }
+
+  .searchable-dropdown .sd-option:hover { background: rgba(1,254,255,0.1); color: var(--color-primary); }
+  .searchable-dropdown .sd-option:last-child { border-bottom: none; }
+  .searchable-dropdown .sd-option .opt-code { color: var(--color-primary); font-weight: 700; font-size: 11px; }
+  .searchable-dropdown .sd-option .opt-detail { color: var(--color-text-muted); font-size: 11px; }
+  .searchable-dropdown .sd-empty { padding: 10px; color: var(--color-text-muted); font-size: 12px; text-align: center; }
+
+  /* ── Multi-select ─────────────────────────────────── */
+  .multi-select-wrap {
+    min-width: 150px;
+    position: relative;
+  }
+
+  .multi-select-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    min-height: 28px;
+    padding: 3px 6px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    align-items: center;
+  }
+
+  .multi-select-pills:hover { border-color: var(--color-primary); }
+
+  .multi-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(1,254,255,0.12);
+    border: 1px solid rgba(1,254,255,0.3);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .multi-pill .pill-remove {
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--color-text-muted);
+    line-height: 1;
+  }
+
+  .multi-pill .pill-remove:hover { color: var(--color-danger); }
+
+  .ms-placeholder { font-size: 11px; color: var(--color-text-muted); }
+
+  .multi-select-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    min-width: 220px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 500;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+
+  .multi-select-dropdown.open { display: block; }
+
+  .ms-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--color-white);
+    border-bottom: 1px solid rgba(46,61,80,0.3);
+  }
+
+  .ms-option:hover { background: rgba(1,254,255,0.08); }
+  .ms-option:last-child { border-bottom: none; }
+  .ms-option input[type=checkbox] { accent-color: var(--color-primary); }
+
+  .ms-empty { padding: 10px; color: var(--color-text-muted); font-size: 11px; text-align: center; }
+
+  /* ── Empleador badge ──────────────────────────────── */
+  .empleador-cell {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    padding: 5px 0;
+    min-width: 120px;
+  }
+
+  .empleador-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(232,64,64,0.12);
+    color: var(--color-danger);
+    border: 1px solid rgba(232,64,64,0.3);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  /* ── Confirmación modal ───────────────────────────── */
+  .confirm-summary {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .confirm-summary .cs-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(46,61,80,0.4);
+    font-size: 13px;
+  }
+
+  .confirm-summary .cs-row:last-child { border-bottom: none; }
+  .confirm-summary .cs-label { color: var(--color-text-muted); }
+  .confirm-summary .cs-value { font-weight: 600; color: var(--color-white); }
+
+  /* ── Éxito ────────────────────────────────────────── */
+  .success-panel {
+    text-align: center;
+    padding: 40px 20px;
+    display: none;
+  }
+
+  .success-panel.visible { display: block; }
+
+  .success-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--color-success);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 28px;
+  }
+
+  .success-panel h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-success);
+    margin-bottom: 8px;
+  }
+
+  .success-panel p {
+    color: var(--color-text-muted);
+    margin-bottom: 24px;
+  }
+
+  .success-actions { display: flex; gap: 12px; justify-content: center; }
+
+  /* ── Loading inicial ──────────────────────────────── */
+  .init-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    gap: 16px;
+  }
+
+  .init-loading .spinner-lg { border-top-color: var(--color-primary); }
+  .init-loading p { color: var(--color-text-muted); }
+
+  /* ── Código despacho readonly ─────────────────────── */
+  .cod-despacho {
+    background: var(--color-border) !important;
+    color: var(--color-text-muted) !important;
+    cursor: not-allowed !important;
+    font-family: 'Courier New', monospace;
+    font-size: 11px !important;
+    min-width: 160px;
+  }
+</style>

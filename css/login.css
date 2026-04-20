@@ -1,0 +1,59 @@
+/* login.css */
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.login-container {
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-logo {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.login-logo .brand-name {
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--color-primary);
+  letter-spacing: 0.1em;
+  line-height: 1;
+}
+
+.login-logo .brand-subtitle {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-top: 6px;
+  letter-spacing: 0.05em;
+}
+
+#btnLogin {
+  margin-top: 8px;
+  font-size: 14px;
+  padding: 11px;
+}
+
+.error-msg {
+  background: rgba(232,64,64,0.1);
+  border: 1px solid rgba(232,64,64,0.3);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viajes — Troncales</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/viajes.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <a href="dashboard.html" style="text-decoration:none">
+          <span class="brand-name">TRONCALES</span>
+        </a>
+      </div>
+      <div class="header-user">
+        <span id="userName"></span>
+        <span id="userRolBadge" class="badge badge-info"></span>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <div class="app-body" style="overflow-y:auto; flex-direction:column;">
+      <main style="padding:24px; max-width:100%; width:100%;">
+
+        <!-- Loader inicial -->
+        <div id="initLoader" class="init-loader">
+          <span class="spinner"></span>
+          <span>Cargando datos maestros...</span>
+        </div>
+        <div id="initError" class="error-msg" style="display:none; padding:20px;"></div>
+
+        <!-- Contenido principal -->
+        <div id="contenido" style="display:none">
+
+          <!-- Step indicator -->
+          <div class="step-indicator">
+            <div class="step active">
+              <div class="step-num">1</div>
+              <span>Datos del Plan</span>
+            </div>
+            <div class="step-divider"></div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <span>Cargar Viajes</span>
+            </div>
+            <div class="step-divider"></div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <span>Confirmado</span>
+            </div>
+          </div>
+
+          <!-- PASO 1 — Datos del Plan -->
+          <div class="paso active" id="paso1">
+            <div class="card">
+              <h2 class="card-title">Paso 1 — Datos del Plan</h2>
+              <form id="formPlan">
+                <div class="plan-grid">
+                  <div class="form-group">
+                    <label for="nombrePlan">Nombre del plan *</label>
+                    <input type="text" id="nombrePlan" required placeholder="Ej: Plan Mendoza 04/2026">
+                  </div>
+                  <div class="form-group">
+                    <label for="fechaViaje">Fecha del viaje *</label>
+                    <input type="date" id="fechaViaje" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="pais">País *</label>
+                    <select id="pais" required>
+                      <option value="argentina">Argentina (CL-ARG)</option>
+                      <option value="chile">Chile (CL-CHILE)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="fechaMaxEntrega">Fecha Máxima de Entrega *</label>
+                    <input type="date" id="fechaMaxEntrega" required>
+                  </div>
+                </div>
+                <div id="errorPlan" class="error-msg" style="margin-bottom:12px;"></div>
+                <button type="submit" id="btnCrearPlan" class="btn btn-primary">
+                  Crear Plan en Driv.in →
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- PASO 2 — Tabla de viajes -->
+          <div class="paso" id="paso2">
+            <div class="card">
+              <h2 class="card-title">Paso 2 — Carga de Viajes</h2>
+
+              <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:var(--color-text-muted);">
+                <span>Plan: <strong style="color:var(--color-white)" id="resumenNombrePlan"></strong></span>
+                <span>Fecha: <strong style="color:var(--color-white)" id="resumenFecha"></strong></span>
+                <span>Esquema: <strong style="color:var(--color-white)" id="resumenEsquema"></strong></span>
+              </div>
+
+              <div class="cantidad-section">
+                <div class="form-group">
+                  <label for="cantidadFilas">Cantidad de viajes</label>
+                  <input type="number" id="cantidadFilas" min="1" max="50" value="1" style="width:100px">
+                </div>
+                <button class="btn btn-secondary" onclick="generarFilas()">Generar filas</button>
+              </div>
+
+              <!-- Tabla dinámica -->
+              <div id="tablaSection" style="display:none">
+                <div class="trips-table-wrap">
+                  <table class="trips-table">
+                    <thead>
+                      <tr>
+                        <th class="col-despacho">Código Despacho</th>
+                        <th class="col-alt">Cód. Alternativo</th>
+                        <th class="col-uni required">Unid. 1</th>
+                        <th class="col-uni">Unid. 2</th>
+                        <th class="col-uni">Unid. 3</th>
+                        <th class="col-dir required">Dirección</th>
+                        <th class="col-vehiculo required">Vehículo</th>
+                        <th class="col-arrastre">Arrastre</th>
+                        <th class="col-empleador">Empleador</th>
+                        <th class="col-etiqueta">Etiq. Costo</th>
+                        <th class="col-proveedor">Proveedor</th>
+                        <th class="col-etiqueta">Etiq. Ingreso</th>
+                        <th class="col-ruta">Ruta Maestra</th>
+                        <th class="col-conductor required">Conductor</th>
+                        <th class="col-conductor">2do Conductor</th>
+                        <th class="col-descripcion">Descripción</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tripsTbody"></tbody>
+                  </table>
+                </div>
+
+                <div style="margin-top:12px;font-size:12px;color:var(--color-text-muted)">
+                  Campos marcados con <strong style="color:var(--color-danger)">*</strong> son obligatorios.
+                </div>
+
+                <div id="validacionError" class="error-msg" style="display:none;margin-top:10px;"></div>
+              </div>
+
+              <button id="btnCargarViajes" class="btn btn-primary" style="display:none;margin-top:16px"
+                      onclick="cargarViajes()">
+                Cargar Viajes
+              </button>
+
+              <button class="btn btn-outline btn-sm" style="margin-top:16px;margin-left:8px"
+                      onclick="transicionarPaso(1)">
+                ← Volver al Plan
+              </button>
+            </div>
+          </div>
+
+          <!-- Paso éxito -->
+          <div id="pasoExito" style="display:none">
+            <div class="card">
+              <div class="success-panel">
+                <div class="success-icon">✅</div>
+                <h2>¡Viajes cargados correctamente!</h2>
+                <p>El archivo Excel fue generado y guardado en Google Drive.</p>
+                <div class="success-actions">
+                  <a id="successFileUrl" href="#" target="_blank" class="btn btn-primary">
+                    Ver archivo en Drive
+                  </a>
+                  <button class="btn btn-outline" onclick="nuevoPlan()">
+                    Nuevo plan
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /contenido -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal confirmación -->
+  <div class="modal-overlay" id="modalConfirm">
+    <div class="modal">
+      <h3 class="modal-title">Confirmar carga de viajes</h3>
+      <div class="confirm-summary">
+        <div class="confirm-row">
+          <span class="confirm-row-label">Cantidad de viajes</span>
+          <span class="confirm-row-value" id="resNViajes"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Nombre del plan</span>
+          <span class="confirm-row-value" id="resNombrePlan"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Fecha</span>
+          <span class="confirm-row-value" id="resFecha"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Esquema</span>
+          <span class="confirm-row-value" id="resEsquema"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Fecha Máx. Entrega</span>
+          <span class="confirm-row-value" id="resFechaMax"></span>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--color-text-muted);">
+        Se generará el Excel y se registrarán los viajes en el sistema. Esta acción no se puede deshacer.
+      </p>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="cerrarConfirm()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmarCarga()">Confirmar y cargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <span class="spinner"></span>
+    <span>Generando Excel y subiendo a Drive...</span>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/viajes.js"></script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!-- ============================================================
+     ARCHIVO GAS: admin.css.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "admin.css" y pegar este contenido
+     ============================================================ -->
+<style>
+  .admin-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .admin-search {
+    flex: 1;
+    max-width: 320px;
+    position: relative;
+  }
+
+  .admin-search input {
+    padding-left: 36px;
+  }
+
+  .admin-search .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    pointer-events: none;
+  }
+
+  /* ── Tabla usuarios ───────────────────────────────── */
+  .users-table th:last-child,
+  .users-table td:last-child {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .toggle-btn {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: background var(--transition);
+    flex-shrink: 0;
+  }
+
+  .toggle-btn::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-white);
+    transition: transform var(--transition);
+  }
+
+  .toggle-btn.on  { background: var(--color-success); }
+  .toggle-btn.off { background: var(--color-border); }
+  .toggle-btn.on::after  { transform: translateX(16px); }
+
+  .row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  /* ── Modal usuario ────────────────────────────────── */
+  .user-modal .form-group { margin-bottom: 14px; }
+
+  /* ── Roles select ─────────────────────────────────── */
+  .role-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+  }
+
+  .role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .role-ADMIN_GENERAL   { background: rgba(1,254,255,0.15);   color: var(--color-primary); }
+  .role-ADMIN_TRAFICO   { background: rgba(0,73,147,0.3);     color: #6eb5ff; }
+  .role-OPERACION_TRAFICO { background: rgba(240,165,0,0.15); color: var(--color-warning); }
+
+  /* ── Empty state ──────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--color-text-muted);
+  }
+
+  .empty-state svg {
+    width: 48px;
+    height: 48px;
+    opacity: 0.3;
+    margin-bottom: 12px;
+  }
+</style>

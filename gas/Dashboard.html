@@ -1,0 +1,185 @@
+<!-- ============================================================
+     ARCHIVO GAS: Dashboard.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "Dashboard" y pegar este contenido
+     ============================================================ -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Troncales — Dashboard</title>
+  <?!= include('global.css'); ?>
+  <?!= include('dashboard.css'); ?>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-name">Troncales</div>
+      <div class="brand-sub">Gestión de Viajes</div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Principal</div>
+      <button class="nav-item active" data-panel="panel-inicio">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span>Inicio</span>
+      </button>
+      <button class="nav-item" id="btnGoViajes" data-panel="">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 3h15v13H1zm15 5h6l3 3v5h-9zm-4 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+        <span>Generar Viajes</span>
+      </button>
+
+      <div class="nav-section-label nav-requires-admin" style="margin-top:12px">Administración</div>
+      <button class="nav-item nav-requires-admin" data-panel="panel-datos">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        <span>Actualizar Datos</span>
+      </button>
+      <button class="nav-item nav-requires-superadmin" data-panel="panel-usuarios">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        <span>Usuarios</span>
+      </button>
+
+      <div class="nav-section-label" style="margin-top:12px">Cuenta</div>
+      <button class="nav-item" data-panel="panel-password">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+        <span>Cambiar Contraseña</span>
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div class="user-details">
+          <div class="user-name" id="sidebarUserName">Cargando...</div>
+          <div class="user-role" id="sidebarUserRole"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm w-100" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1 id="pageHeaderTitle">Inicio</h1>
+    </header>
+
+    <div class="page-body">
+
+      <!-- Panel Inicio -->
+      <div id="panel-inicio" class="panel-content">
+        <div class="panel-grid">
+          <div class="card">
+            <div class="card-title">Bienvenido al sistema</div>
+            <p class="text-muted" style="margin-bottom:16px;line-height:1.6">
+              Desde aquí podés generar viajes de transporte troncal, sincronizar datos con Driv.in
+              y gestionar el sistema.
+            </p>
+            <button class="btn btn-primary" id="btnGoViajes">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M1 3h15v13H1zm15 5h6l3 3v5h-9zm-4 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+              Ir a Generar Viajes
+            </button>
+          </div>
+          <div class="card nav-requires-admin">
+            <div class="card-title">Sincronización Driv.in</div>
+            <p class="text-muted" style="margin-bottom:12px;font-size:12px">Los datos se actualizan automáticamente cada día a las 3 AM.</p>
+            <button class="btn btn-secondary btn-sm" data-panel="panel-datos" onclick="document.querySelector('[data-panel=panel-datos]').click()">
+              Ver Sincronización Manual
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel Actualizar Datos -->
+      <div id="panel-datos" class="panel-content d-none">
+        <div class="card" style="max-width:560px">
+          <div class="card-title">Actualizar datos desde Driv.in</div>
+          <p class="text-muted mb-16" style="font-size:12px">Cada actualización sobrescribe los datos del Sheet correspondiente con los datos actuales de Driv.in.</p>
+
+          <div class="sync-btn-row">
+            <span class="sync-btn-label">Direcciones</span>
+            <div class="sync-btn-status">
+              <span class="sync-result-badge" id="badgeDir"></span>
+              <button class="btn btn-secondary btn-sm" id="btnSyncDir">Actualizar</button>
+            </div>
+          </div>
+          <div class="sync-btn-row">
+            <span class="sync-btn-label">Conductores</span>
+            <div class="sync-btn-status">
+              <span class="sync-result-badge" id="badgeTri"></span>
+              <button class="btn btn-secondary btn-sm" id="btnSyncTri">Actualizar</button>
+            </div>
+          </div>
+          <div class="sync-btn-row">
+            <span class="sync-btn-label">Vehículos (Flota)</span>
+            <div class="sync-btn-status">
+              <span class="sync-result-badge" id="badgeFlo"></span>
+              <button class="btn btn-secondary btn-sm" id="btnSyncFlo">Actualizar</button>
+            </div>
+          </div>
+          <div class="sync-btn-row">
+            <span class="sync-btn-label">Socios de Negocio</span>
+            <div class="sync-btn-status">
+              <span class="sync-result-badge" id="badgeSoc"></span>
+              <button class="btn btn-secondary btn-sm" id="btnSyncSoc">Actualizar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel Usuarios -->
+      <div id="panel-usuarios" class="panel-content d-none">
+        <div class="card">
+          <div class="card-title">Gestión de Usuarios</div>
+          <p class="text-muted mb-16" style="font-size:12px">
+            Para gestionar usuarios en detalle, usá la pantalla dedicada.
+          </p>
+          <a href="?page=admin&token=" id="linkAdmin" class="btn btn-primary btn-sm">Abrir Panel de Administración</a>
+        </div>
+      </div>
+
+      <!-- Panel Contraseña -->
+      <div id="panel-password" class="panel-content d-none">
+        <div class="card" style="max-width:420px">
+          <div class="card-title">Cambiar Contraseña</div>
+          <form id="passForm" class="password-form" novalidate>
+            <div class="form-group">
+              <label class="form-label">Contraseña actual</label>
+              <input type="password" id="passActual" class="form-control" placeholder="Contraseña actual" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nueva contraseña</label>
+              <input type="password" id="passNueva" class="form-control" placeholder="Mínimo 6 caracteres" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirmar nueva contraseña</label>
+              <input type="password" id="passConfirm" class="form-control" placeholder="Repetir nueva contraseña" required>
+            </div>
+            <div id="passAlert" class="d-none mt-8"></div>
+            <button type="submit" id="btnCambiarPass" class="btn btn-primary mt-16">Cambiar Contraseña</button>
+          </form>
+        </div>
+      </div>
+
+    </div><!-- /page-body -->
+  </main>
+
+</div>
+
+<script id="sessionData" type="application/json"><?!= session ?></script>
+<?!= include('api.js'); ?>
+<?!= include('dashboard.js'); ?>
+
+<script>
+  // Completar link de admin con token
+  document.addEventListener('DOMContentLoaded', function() {
+    var lnk = document.getElementById('linkAdmin');
+    if (lnk) lnk.href = '?page=admin&token=' + getToken();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Troncales</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="brand-name">TRONCALES</span>
+      </div>
+      <div class="header-user">
+        <span id="userName"></span>
+        <span id="userRolBadge" class="badge badge-info"></span>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <nav class="sidebar">
+        <a href="viajes.html" class="nav-item">
+          <span>🚛</span> Generar Viajes
+        </a>
+        <a href="#cambiarPassword" class="nav-item" onclick="scrollToSection('cambiarPassword')">
+          <span>🔑</span> Cambiar Contraseña
+        </a>
+        <a href="#actualizarDatos" class="nav-item" id="navActualizar" style="display:none"
+           onclick="scrollToSection('actualizarDatos')">
+          <span>🔄</span> Actualizar Datos
+        </a>
+        <a href="admin.html" class="nav-item" id="navAdmin" style="display:none">
+          <span>👥</span> Gestión de Usuarios
+        </a>
+      </nav>
+
+      <main class="main-content">
+
+        <!-- Welcome -->
+        <div class="welcome-card">
+          <div style="font-size:36px">🚛</div>
+          <div>
+            <h2>Bienvenido al sistema Troncales</h2>
+            <p>Gestioná viajes de transporte troncal e integrá datos con Driv.in.</p>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="quick-actions">
+          <a href="viajes.html" class="quick-action">
+            <div class="quick-action-icon">📋</div>
+            <div class="quick-action-label">Generar Viajes</div>
+          </a>
+        </div>
+
+        <!-- Actualizar datos -->
+        <section class="card" id="secActualizar" style="display:none">
+          <h2 class="card-title" id="actualizarDatos">Actualizar Datos desde Driv.in</h2>
+          <div class="sync-grid">
+            <div class="sync-item">
+              <div class="sync-item-label">Direcciones</div>
+              <button class="btn btn-secondary btn-sm" id="btnSyncDir" onclick="syncDirecciones()">
+                Actualizar
+              </button>
+              <div id="resDirecciones" class="sync-result"></div>
+            </div>
+            <div class="sync-item">
+              <div class="sync-item-label">Conductores</div>
+              <button class="btn btn-secondary btn-sm" id="btnSyncCond" onclick="syncConductores()">
+                Actualizar
+              </button>
+              <div id="resConductores" class="sync-result"></div>
+            </div>
+            <div class="sync-item">
+              <div class="sync-item-label">Vehículos</div>
+              <button class="btn btn-secondary btn-sm" id="btnSyncVeh" onclick="syncVehiculos()">
+                Actualizar
+              </button>
+              <div id="resVehiculos" class="sync-result"></div>
+            </div>
+            <div class="sync-item">
+              <div class="sync-item-label">Socios</div>
+              <button class="btn btn-secondary btn-sm" id="btnSyncSoc" onclick="syncSocios()">
+                Actualizar
+              </button>
+              <div id="resSocios" class="sync-result"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Cambiar contraseña -->
+        <section class="card">
+          <h2 class="card-title" id="cambiarPassword">Cambiar Contraseña</h2>
+          <form class="password-form" id="changePasswordForm">
+            <div class="form-group">
+              <label for="passActual">Contraseña actual</label>
+              <input type="password" id="passActual" required autocomplete="current-password">
+            </div>
+            <div class="form-group">
+              <label for="passNuevo">Nueva contraseña</label>
+              <input type="password" id="passNuevo" required autocomplete="new-password">
+            </div>
+            <div class="form-group">
+              <label for="passConfirma">Confirmar nueva contraseña</label>
+              <input type="password" id="passConfirma" required autocomplete="new-password">
+            </div>
+            <div id="changePwMsg"></div>
+            <button type="submit" id="btnChangePass" class="btn btn-primary">
+              Actualizar contraseña
+            </button>
+          </form>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script>
+    function scrollToSection(id) {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>

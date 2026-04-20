@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usuarios — Troncales</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <a href="dashboard.html" style="text-decoration:none">
+          <span class="brand-name">TRONCALES</span>
+        </a>
+      </div>
+      <div class="header-user">
+        <span id="userName"></span>
+        <span id="userRolBadge" class="badge badge-info"></span>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <nav class="sidebar">
+        <a href="dashboard.html" class="nav-item">← Dashboard</a>
+        <a href="viajes.html"    class="nav-item"><span>🚛</span> Generar Viajes</a>
+        <a href="admin.html"     class="nav-item active"><span>👥</span> Usuarios</a>
+      </nav>
+
+      <main class="main-content">
+        <div class="card">
+          <h2 class="card-title">Gestión de Usuarios</h2>
+
+          <div class="admin-toolbar">
+            <input type="text" id="searchInput" class="search-input"
+                   placeholder="Buscar por nombre, email o rol...">
+            <button class="btn btn-primary" onclick="abrirNuevo()">+ Nuevo usuario</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="users-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="usuariosTbody">
+                <tr><td colspan="5" class="text-muted" style="text-align:center;padding:20px;">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal Nuevo Usuario -->
+  <div class="modal-overlay" id="modalNuevo">
+    <div class="modal">
+      <h3 class="modal-title">Nuevo Usuario</h3>
+      <form id="formNuevo" onsubmit="guardarNuevo(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre completo *</label>
+            <input type="text" id="nuevoNombre" required>
+          </div>
+          <div class="form-group">
+            <label>Email *</label>
+            <input type="email" id="nuevoEmail" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Contraseña *</label>
+            <input type="password" id="nuevoPass" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label>Rol *</label>
+            <select id="nuevoRol" required>
+              <option value="OPERACION_TRAFICO">OPERACION_TRAFICO</option>
+              <option value="ADMIN_TRAFICO">ADMIN_TRAFICO</option>
+              <option value="ADMIN_GENERAL">ADMIN_GENERAL</option>
+            </select>
+          </div>
+        </div>
+        <div id="nuevoError" class="error-msg"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="cerrarNuevo()">Cancelar</button>
+          <button type="submit" id="btnGuardarNuevo" class="btn btn-primary">Crear usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Editar Usuario -->
+  <div class="modal-overlay" id="modalEditar">
+    <div class="modal">
+      <h3 class="modal-title">Editar Usuario</h3>
+      <form id="formEditar" onsubmit="guardarEditar(event)">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="text" id="editEmail" readonly>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre completo *</label>
+            <input type="text" id="editNombre" required>
+          </div>
+          <div class="form-group">
+            <label>Rol *</label>
+            <select id="editRol" required>
+              <option value="OPERACION_TRAFICO">OPERACION_TRAFICO</option>
+              <option value="ADMIN_TRAFICO">ADMIN_TRAFICO</option>
+              <option value="ADMIN_GENERAL">ADMIN_GENERAL</option>
+            </select>
+          </div>
+        </div>
+        <div id="editError" class="error-msg"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="cerrarEditar()">Cancelar</button>
+          <button type="submit" id="btnGuardarEditar" class="btn btn-primary">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

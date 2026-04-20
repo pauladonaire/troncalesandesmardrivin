@@ -1,0 +1,87 @@
+<!-- ============================================================
+     ARCHIVO GAS: api.js.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "api.js" y pegar este contenido
+     ============================================================ -->
+<script>
+  /**
+   * Envuelve google.script.run en una Promise para usar async/await.
+   */
+  function gasCall(functionName) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject);
+      runner[functionName].apply(runner, args);
+    });
+  }
+
+  // ── Gestión de sesión ────────────────────────────────
+  function getToken()   { return localStorage.getItem('troncales_token') || ''; }
+  function getSession() {
+    try { return JSON.parse(localStorage.getItem('troncales_session') || 'null'); }
+    catch(e) { return null; }
+  }
+  function saveSession(token, usuario) {
+    localStorage.setItem('troncales_token',   token);
+    localStorage.setItem('troncales_session', JSON.stringify(usuario));
+  }
+  function clearSession() {
+    localStorage.removeItem('troncales_token');
+    localStorage.removeItem('troncales_session');
+  }
+  function isLoggedIn() {
+    return !!getToken() && !!getSession();
+  }
+
+  // ── Navegación ───────────────────────────────────────
+  function navigateTo(page) {
+    var base  = window.location.href.split('?')[0];
+    var token = getToken();
+    window.location.href = base + '?page=' + page + '&token=' + token;
+  }
+
+  function redirectToLogin() {
+    clearSession();
+    var base = window.location.href.split('?')[0];
+    window.location.href = base + '?page=login';
+  }
+
+  // ── Helpers UI ──────────────────────────────────────
+  function showEl(el)  { if (el) el.classList.remove('d-none'); }
+  function hideEl(el)  { if (el) el.classList.add('d-none'); }
+
+  function setLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+      btn._originalText = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner"></span> Procesando...';
+      btn.disabled = true;
+    } else {
+      btn.innerHTML = btn._originalText || btn.innerHTML;
+      btn.disabled  = false;
+    }
+  }
+
+  function showAlert(container, message, type) {
+    if (!container) return;
+    container.innerHTML = '<div class="alert alert-' + (type || 'danger') + '">' + escapeHtml(message) + '</div>';
+    showEl(container);
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ── Logout global ────────────────────────────────────
+  async function handleLogout() {
+    try { await gasCall('logout', getToken()); } catch(e) {}
+    redirectToLogin();
+  }
+</script>

@@ -1,0 +1,348 @@
+/* viajes.css */
+
+/* ── Step indicator ── */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  margin-bottom: 28px;
+  gap: 0;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+
+.step-num {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.step.active  { color: var(--color-primary); }
+.step.done    { color: var(--color-success); }
+.step.active .step-num { background: var(--color-primary); color: var(--color-black); border-color: var(--color-primary); }
+.step.done .step-num   { background: var(--color-success); color: var(--color-black); border-color: var(--color-success); }
+
+.step-divider {
+  flex: 1;
+  height: 2px;
+  background: var(--color-border);
+  max-width: 60px;
+  min-width: 20px;
+}
+
+/* ── Paso sections ── */
+.paso {
+  display: none;
+  animation: fadeIn 0.25s ease;
+}
+.paso.active { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Plan form ── */
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+/* ── Cantidad section ── */
+.cantidad-section {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.cantidad-section .form-group { margin-bottom: 0; flex: 0 0 120px; }
+
+/* ── Trips table ── */
+.trips-table-wrap {
+  overflow-x: auto;
+  margin-top: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.trips-table {
+  min-width: 2000px;
+  border-collapse: collapse;
+}
+
+.trips-table th {
+  background: var(--color-background);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 8px;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.trips-table th.required::after {
+  content: ' *';
+  color: var(--color-danger);
+}
+
+.trips-table td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.trips-table tr:last-child td { border-bottom: none; }
+.trips-table tr:hover td { background: rgba(255,255,255,0.015); }
+
+.trips-table input,
+.trips-table select {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-white);
+  font-size: 12px;
+  outline: none;
+  min-width: 80px;
+}
+
+.trips-table input:focus,
+.trips-table select:focus { border-color: var(--color-primary); }
+
+.trips-table input.error,
+.trips-table select.error,
+.trips-table .dropdown-input.error { border-color: var(--color-danger) !important; }
+
+.trips-table select option { background: var(--color-surface); }
+
+/* ── Col widths ── */
+.col-despacho    { min-width: 160px; }
+.col-alt         { min-width: 100px; }
+.col-uni         { min-width: 70px; }
+.col-dir         { min-width: 200px; }
+.col-vehiculo    { min-width: 100px; }
+.col-arrastre    { min-width: 100px; }
+.col-empleador   { min-width: 150px; }
+.col-etiqueta    { min-width: 160px; }
+.col-proveedor   { min-width: 130px; }
+.col-ruta        { min-width: 130px; }
+.col-conductor   { min-width: 180px; }
+.col-descripcion { min-width: 150px; }
+
+/* ── Custom searchable dropdown ── */
+.dropdown-wrap {
+  position: relative;
+}
+
+.dropdown-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-white);
+  font-size: 12px;
+  outline: none;
+}
+
+.dropdown-input:focus { border-color: var(--color-primary); }
+
+.dropdown-list {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  z-index: 200;
+  margin-top: 2px;
+}
+
+.dropdown-list.open { display: block; }
+
+.dropdown-option {
+  padding: 7px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-option:hover { background: rgba(1,254,255,0.12); color: var(--color-primary); }
+.dropdown-option.no-results { color: var(--color-text-muted); cursor: default; }
+.dropdown-option.no-results:hover { background: none; color: var(--color-text-muted); }
+
+/* ── Empleador warning ── */
+.empleador-warn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-danger);
+  background: rgba(232,64,64,0.1);
+  border: 1px solid rgba(232,64,64,0.3);
+  border-radius: 4px;
+  padding: 4px 6px;
+  line-height: 1.3;
+}
+
+.empleador-value {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 6px 4px;
+}
+
+/* ── Multi-select ── */
+.multi-select-wrap { position: relative; }
+
+.multi-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px 6px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  align-items: center;
+}
+
+.multi-pills:hover { border-color: var(--color-primary); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(1,254,255,0.12);
+  color: var(--color-primary);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pill-remove {
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+}
+.pill-remove:hover { opacity: 1; }
+
+.pills-placeholder { font-size: 12px; color: var(--color-text-muted); }
+
+.multi-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  z-index: 200;
+  margin-top: 2px;
+}
+.multi-dropdown.open { display: block; }
+
+.multi-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.multi-option:hover { background: rgba(1,254,255,0.08); }
+.multi-option input[type="checkbox"] { accent-color: var(--color-primary); }
+
+.no-etiquetas { font-size: 12px; color: var(--color-text-muted); padding: 6px 4px; }
+
+/* ── Confirmation modal ── */
+.confirm-summary {
+  background: var(--color-background);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.confirm-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.confirm-row:last-child { border-bottom: none; }
+.confirm-row-label { color: var(--color-text-muted); }
+.confirm-row-value { font-weight: 600; }
+
+/* ── Success panel ── */
+.success-panel {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.success-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+}
+
+.success-panel h2 {
+  font-size: 22px;
+  color: var(--color-success);
+  margin-bottom: 8px;
+}
+
+.success-panel p {
+  color: var(--color-text-muted);
+  margin-bottom: 24px;
+}
+
+.success-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Loader inicial ── */
+.init-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  padding: 60px 20px;
+  color: var(--color-text-muted);
+}
+
+.init-loader .spinner { width: 32px; height: 32px; border-width: 3px; color: var(--color-primary); }
