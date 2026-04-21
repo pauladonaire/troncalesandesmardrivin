@@ -282,6 +282,7 @@
   cursor: pointer;
   font-size: 12px;
   line-height: 1.35;
+  color: var(--color-white);
 }
 .multi-option:hover { background: rgba(1,254,255,0.08); }
 .multi-option input[type="checkbox"] {
