@@ -677,16 +677,26 @@ function crearMultiSelect(idx, tipo, items) {
   dropdown.addEventListener('click',     e => e.stopPropagation());
 
   items.forEach(item => {
+    const vigente  = estaVigente(item.vigenciaDesde, item.vigenciaHasta);
+    const color    = vigente ? '#ffffff' : '#e84040';
+
     const lbl = document.createElement('label');
-    lbl.className = 'multi-option';
-    const vigente = estaVigente(item.vigenciaDesde, item.vigenciaHasta);
-    if (!vigente) { lbl.classList.add('fuera-vigencia'); lbl.title = 'Fuera de período de vigencia'; }
+    lbl.className  = 'multi-option';
+    lbl.style.cssText = 'display:block;padding:6px 10px;cursor:pointer;font-size:12px;line-height:20px;color:' + color + ';';
+    if (!vigente) lbl.title = 'Fuera de período de vigencia';
+
     const cb = document.createElement('input');
     cb.type  = 'checkbox';
     cb.value = item.etiqueta;
+    cb.style.cssText = 'vertical-align:middle;margin-right:6px;cursor:pointer;accent-color:#01feff;';
     cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph, items));
+
+    const txt = document.createElement('span');
+    txt.style.cssText = 'vertical-align:middle;color:' + color + ';';
+    txt.textContent   = item.etiqueta;
+
     lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(item.etiqueta));
+    lbl.appendChild(txt);
     dropdown.appendChild(lbl);
   });
 
