@@ -86,6 +86,7 @@ function crearFila(idx) {
   const tr = document.createElement('tr');
   tr.dataset.idx = idx;
   tr.innerHTML = `
+    <td class="col-del"><button class="btn-del-row" onclick="eliminarFila(this)" title="Eliminar fila">×</button></td>
     <td class="col-despacho"><input type="text" class="f-despacho" value="${escapeHtml(codigoDespacho + '-' + (idx + 1))}" readonly></td>
     <td class="col-alt"><input type="text" class="f-alt" data-campo="codigoAlternativo" placeholder="*"></td>
     <td class="col-uni"><input type="number" class="f-uni1" min="1" step="1" placeholder="*"></td>
@@ -197,6 +198,19 @@ function crearFila(idx) {
   tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.wrap);
   tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.wrap);
   return tr;
+}
+
+// ── Eliminar fila ──
+
+function eliminarFila(btn) {
+  const tr  = btn.closest('tr');
+  const idx = Number(tr.dataset.idx);
+  delete filaRefs[idx];
+  tr.remove();
+  if (!document.querySelector('#tripsTbody tr')) {
+    document.getElementById('tablaSection').style.display    = 'none';
+    document.getElementById('btnCargarViajes').style.display = 'none';
+  }
 }
 
 // ── Dropdown buscable unificado (Mejora 9) ──
@@ -463,7 +477,7 @@ function crearMultiSelect(idx, tipo, items) {
       const rect = pills.getBoundingClientRect();
       dropdown.style.top   = (rect.bottom + 2) + 'px';
       dropdown.style.left  = rect.left + 'px';
-      dropdown.style.width = Math.max(rect.width, 220) + 'px';
+      dropdown.style.width = Math.max(rect.width, 320) + 'px';
       dropdown.classList.add('open');
       searchInput.value = '';
       dropdown.querySelectorAll('label.multi-option').forEach(lbl => lbl.style.display = '');

@@ -106,15 +106,24 @@ function _normHeader(s) {
 
 function _detectarColumnas(headers) {
   const map = {};
+  // Primera pasada: buscar columnas con "nombre" (prioridad alta, evita "ID del Conductor")
   headers.forEach((h, i) => {
     const n = _normHeader(h);
-    if (map.altCode    === undefined && (n.includes('travel') || n.includes('id viaje') || n.includes('id de envio') || n.includes('shipment') || n === 'id')) map.altCode = i;
-    if (map.destino    === undefined && (n.includes('destino') || n.includes('destination') || n.includes('punto de entrega') || n.includes('cod dir') || n.includes('codigo dir') || n.includes('cod. dir'))) map.destino = i;
-    if (map.tractor    === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
-    if (map.arrastre   === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
-    if (map.servicio   === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
-    if (map.conductor  === undefined && (n.includes('conductor principal') || n.includes('chofer principal') || n === 'conductor' || n.includes('nombre conductor') || n.includes('nombre del conductor principal'))) map.conductor = i;
-    if (map.cond2      === undefined && (n.includes('adicional') || n.includes('segundo conductor') || n.includes('2do conductor') || n.includes('chofer adicional') || n.includes('nombre del conductor adicional'))) map.cond2 = i;
+    if (map.altCode   === undefined && (n.includes('travel') || n.includes('id viaje') || n.includes('id de envio') || n.includes('shipment') || n === 'id')) map.altCode = i;
+    if (map.destino   === undefined && (n.includes('destino') || n.includes('destination') || n.includes('punto de entrega') || n.includes('cod dir') || n.includes('codigo dir') || n.includes('cod. dir'))) map.destino = i;
+    if (map.tractor   === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
+    if (map.arrastre  === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
+    if (map.servicio  === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
+    // Conductor: requiere "nombre" + "conductor" (excluye "ID del Conductor")
+    if (map.conductor === undefined && n.includes('nombre') && n.includes('conductor') && !n.includes('adicional') && !n.includes('secundario')) map.conductor = i;
+    // 2do conductor: requiere "nombre" + "adicional"/"secundario"/"2do"
+    if (map.cond2     === undefined && n.includes('nombre') && n.includes('conductor') && (n.includes('adicional') || n.includes('secundario') || n.includes('2do'))) map.cond2 = i;
+  });
+  // Segunda pasada: fallback sin "nombre" (solo si no se encontró en la primera)
+  headers.forEach((h, i) => {
+    const n = _normHeader(h);
+    if (map.conductor === undefined && (n === 'conductor' || (n.includes('conductor') && n.includes('principal') && !n.includes('id')))) map.conductor = i;
+    if (map.cond2     === undefined && n.includes('conductor') && (n.includes('adicional') || n.includes('segundo') || n.includes('2do')) && !n.includes('id')) map.cond2 = i;
   });
   return map;
 }
@@ -167,7 +176,9 @@ function _generarDesdeRows(rows) {
       cond2Match, cond2Raw,
       provMatch
     };
-    tbody.appendChild(crearFilaMeli(i, datos));
+    const tr = crearFilaMeli(i, datos);
+    tbody.appendChild(tr);
+    tr._postInit();
   });
 
   document.getElementById('tablaSection').style.display    = 'block';
@@ -243,6 +254,7 @@ function crearFilaMeli(idx, datos) {
   const tr = document.createElement('tr');
   tr.dataset.idx = idx;
   tr.innerHTML = `
+    <td class="col-del"><button class="btn-del-row" onclick="eliminarFila(this)" title="Eliminar fila">×</button></td>
     <td class="col-despacho"><input type="text" class="f-despacho" value="${escapeHtml(datos.codigoDespacho)}" readonly></td>
     <td class="col-alt"><input type="text" class="f-alt" data-campo="codigoAlternativo" value="${escapeHtml(datos.altCode)}" placeholder="*"></td>
     <td class="col-uni"><input type="number" class="f-uni1" min="1" step="1" value="${escapeHtml(datos.unidades1)}" placeholder="*"></td>
@@ -354,61 +366,74 @@ function crearFilaMeli(idx, datos) {
   tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.wrap);
   tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.wrap);
 
-  // Pre-fill dirección
+  // Pre-fill valores de input (DOM-independiente — solo modifica el input)
   if (datos.dirMatch) {
     refs.dir.setValue(datos.dirMatch.code, `[${datos.dirMatch.code}] — ${datos.dirMatch.name}`);
   } else if (datos.dirRaw) {
-    refs.dir.input.value            = datos.dirRaw;
-    refs.dir.input.dataset.value    = datos.dirRaw;
+    refs.dir.input.value         = datos.dirRaw;
+    refs.dir.input.dataset.value = datos.dirRaw;
     refs.dir.input.classList.add('no-validado');
   }
 
-  // Pre-fill vehículo
   if (datos.vehMatch) {
     refs.veh.setValue(datos.vehMatch.code, datos.vehMatch.code);
-    onVehiculoChange(idx, datos.vehMatch.code);
   } else if (datos.vehRaw) {
-    refs.veh.input.value            = datos.vehRaw;
-    refs.veh.input.dataset.value    = datos.vehRaw;
+    refs.veh.input.value         = datos.vehRaw;
+    refs.veh.input.dataset.value = datos.vehRaw;
     refs.veh.input.classList.add('no-validado');
   }
 
-  // Pre-fill arrastre
   if (datos.arrMatch) {
     refs.arr.setValue(datos.arrMatch, datos.arrMatch);
   } else if (datos.arrastRaw) {
-    refs.arr.input.value            = datos.arrastRaw;
-    refs.arr.input.dataset.value    = datos.arrastRaw;
+    refs.arr.input.value         = datos.arrastRaw;
+    refs.arr.input.dataset.value = datos.arrastRaw;
     refs.arr.input.classList.add('no-validado');
   }
 
-  // Proveedor (fijo TECH PACK SRL)
-  const provNombre = datos.provMatch ? datos.provMatch.name : PROVEEDOR_MELI_FIJO;
-  refs.prov.setValue(provNombre, provNombre);
+  const _provNombre = datos.provMatch ? datos.provMatch.name : PROVEEDOR_MELI_FIJO;
+  refs.prov.setValue(_provNombre, _provNombre);
   if (!datos.provMatch) refs.prov.input.classList.add('no-validado');
-  onProveedorChange(idx, provNombre);
 
-  // Pre-fill conductor principal
   if (datos.condMatch) {
     refs.cond.setValue(datos.condMatch.nombre_completo, datos.condMatch.nombre_completo);
     refs.cond.input.dataset.extra = JSON.stringify({ nombre: datos.condMatch.nombre_completo, email: datos.condMatch.email || '' });
   } else if (datos.condRaw) {
-    refs.cond.input.value           = datos.condRaw;
-    refs.cond.input.dataset.value   = datos.condRaw;
+    refs.cond.input.value         = datos.condRaw;
+    refs.cond.input.dataset.value = datos.condRaw;
     refs.cond.input.classList.add('no-validado');
   }
 
-  // Pre-fill 2do conductor
   if (datos.cond2Match) {
     refs.cond2.setValue(datos.cond2Match.nombre_completo, datos.cond2Match.nombre_completo);
     refs.cond2.input.dataset.extra = JSON.stringify({ nombre: datos.cond2Match.nombre_completo, email: datos.cond2Match.email || '' });
   } else if (datos.cond2Raw) {
-    refs.cond2.input.value          = datos.cond2Raw;
-    refs.cond2.input.dataset.value  = datos.cond2Raw;
+    refs.cond2.input.value         = datos.cond2Raw;
+    refs.cond2.input.dataset.value = datos.cond2Raw;
     refs.cond2.input.classList.add('no-validado');
   }
 
+  // _postInit: llamar DESPUÉS de que el tr esté en el DOM
+  tr._postInit = function() {
+    if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
+    onProveedorChange(idx, _provNombre);
+  };
+
   return tr;
+}
+
+// ── Eliminar fila ──
+
+function eliminarFila(btn) {
+  const tr  = btn.closest('tr');
+  const idx = Number(tr.dataset.idx);
+  delete filaRefs[idx];
+  tr.remove();
+  if (!document.querySelector('#tripsTbody tr')) {
+    document.getElementById('tablaSection').style.display    = 'none';
+    document.getElementById('btnCargarViajes').style.display = 'none';
+    document.getElementById('meliAlertaNoValidados').style.display = 'none';
+  }
 }
 
 // ── Dropdown buscable ──
@@ -671,7 +696,7 @@ function crearMultiSelect(idx, tipo, items) {
       const rect = pills.getBoundingClientRect();
       dropdown.style.top   = (rect.bottom + 2) + 'px';
       dropdown.style.left  = rect.left + 'px';
-      dropdown.style.width = Math.max(rect.width, 220) + 'px';
+      dropdown.style.width = Math.max(rect.width, 320) + 'px';
       dropdown.classList.add('open');
       searchInput.value = '';
       dropdown.querySelectorAll('label.multi-option').forEach(lbl => lbl.style.display = '');

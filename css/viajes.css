@@ -264,7 +264,7 @@
 .multi-dropdown {
   display: none;
   position: fixed;
-  max-height: 180px;
+  max-height: 260px;
   overflow-y: auto;
   background: var(--color-surface);
   border: 1px solid var(--color-primary);
@@ -556,6 +556,24 @@
   background: rgba(245, 158, 11, 0.08) !important;
   color: #f59e0b;
 }
+
+/* ── Botón eliminar fila ── */
+.col-del { width: 32px; text-align: center; padding: 4px !important; }
+
+.btn-del-row {
+  background: none;
+  border: 1px solid rgba(232,64,64,0.4);
+  color: var(--color-danger);
+  width: 26px; height: 26px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  padding: 0;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.btn-del-row:hover { background: rgba(232,64,64,0.18); border-color: var(--color-danger); }
 
 /* ── Meli upload box ── */
 .meli-upload-box {

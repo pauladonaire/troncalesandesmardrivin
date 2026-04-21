@@ -15,17 +15,24 @@ function crearPlanillaViajes(token, viajes, planDatos) {
     var nombre = ('Troncales_' + planDatos.nombre + '_' + planDatos.fecha)
       .replace(/[\/\\?%*:|"<>]/g, '_');
 
-    var ss    = SpreadsheetApp.create(nombre);
-    var ssId  = ss.getId();
-    var archivo = DriveApp.getFileById(ssId);
+    var ss      = SpreadsheetApp.create(nombre);
+    var ssId    = ss.getId();
+    var fileUrl = 'https://docs.google.com/spreadsheets/d/' + ssId + '/edit';
 
-    // Mover a carpeta destino (no crítico si falla)
+    // Operaciones DriveApp — no críticas (pueden fallar si faltan permisos de Drive)
     try {
-      var folder = DriveApp.getFolderById(CONFIG.DRIVE.FOLDER_ID);
-      folder.addFile(archivo);
-      try { DriveApp.getRootFolder().removeFile(archivo); } catch(eRem) {}
-    } catch(eFold) {
-      console.warn('No se pudo mover a carpeta destino: ' + eFold.message);
+      var archivo = DriveApp.getFileById(ssId);
+      try {
+        var folder = DriveApp.getFolderById(CONFIG.DRIVE.FOLDER_ID);
+        folder.addFile(archivo);
+        try { DriveApp.getRootFolder().removeFile(archivo); } catch(eRem) {}
+      } catch(eFold) {
+        console.warn('No se pudo mover a carpeta destino: ' + eFold.message);
+      }
+      archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      fileUrl = archivo.getUrl();
+    } catch(eDrive) {
+      console.warn('DriveApp no disponible, usando URL directa: ' + eDrive.message);
     }
 
     var hoja    = ss.getActiveSheet();
@@ -39,11 +46,15 @@ function crearPlanillaViajes(token, viajes, planDatos) {
       hoja.getRange(2, 1, rows.length, headers.length).setValues(rows);
     }
     hoja.autoResizeColumns(1, headers.length);
-    archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    registrarViajesEnSheet_(viajes || [], planDatos, session.email);
+    // Registro en historial — no crítico
+    try {
+      registrarViajesEnSheet_(viajes || [], planDatos, session.email);
+    } catch(eReg) {
+      console.warn('registrarViajesEnSheet_ error: ' + eReg.message);
+    }
 
-    return { ok: true, fileUrl: archivo.getUrl(), fileId: ssId };
+    return { ok: true, fileUrl: fileUrl, fileId: ssId };
   } catch(e) {
     console.error('crearPlanillaViajes error: ' + e.message + '\n' + e.stack);
     return { ok: false, error: e.message };
