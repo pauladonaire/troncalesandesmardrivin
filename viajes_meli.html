@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Viajes — Troncales</title>
+  <title>Viajes Meli — Troncales</title>
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/viajes.css">
 </head>
@@ -37,7 +37,7 @@
         <!-- Contenido principal -->
         <div id="contenido" style="display:none">
 
-          <!-- Sync datos maestros (solo admins) -->
+          <!-- Sync datos maestros -->
           <div id="secSyncViajes" class="sync-collapsible-section" style="display:none">
             <button class="sync-toggle-btn" onclick="toggleSyncPanel()">
               <span>↻ Actualizar datos maestros</span>
@@ -90,7 +90,7 @@
             <div class="step-divider"></div>
             <div class="step">
               <div class="step-num">2</div>
-              <span>Cargar Viajes</span>
+              <span>Importar Meli</span>
             </div>
             <div class="step-divider"></div>
             <div class="step">
@@ -102,12 +102,12 @@
           <!-- PASO 1 — Datos del Plan -->
           <div class="paso active" id="paso1">
             <div class="card">
-              <h2 class="card-title">Paso 1 — Datos del Plan</h2>
+              <h2 class="card-title">Paso 1 — Datos del Plan (Meli)</h2>
               <form id="formPlan">
                 <div class="plan-grid">
                   <div class="form-group">
                     <label for="nombrePlan">Nombre del plan *</label>
-                    <input type="text" id="nombrePlan" required placeholder="Ej: Plan Mendoza 04/2026">
+                    <input type="text" id="nombrePlan" required placeholder="Ej: Plan Meli Mendoza 04/2026">
                   </div>
                   <div class="form-group">
                     <label for="fechaViaje">Fecha del viaje *</label>
@@ -133,10 +133,10 @@
             </div>
           </div>
 
-          <!-- PASO 2 — Tabla de viajes -->
+          <!-- PASO 2 — Importar Excel Meli -->
           <div class="paso" id="paso2">
             <div class="card">
-              <h2 class="card-title">Paso 2 — Carga de Viajes</h2>
+              <h2 class="card-title">Paso 2 — Importar Excel de Mercado Libre</h2>
 
               <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:var(--color-text-muted);">
                 <span>Plan: <strong style="color:var(--color-white)" id="resumenNombrePlan"></strong></span>
@@ -144,15 +144,18 @@
                 <span>Esquema: <strong style="color:var(--color-white)" id="resumenEsquema"></strong></span>
               </div>
 
-              <div class="cantidad-section">
-                <div class="form-group">
-                  <label for="cantidadFilas">Cantidad de viajes</label>
-                  <input type="number" id="cantidadFilas" min="1" max="50" value="1" style="width:100px">
+              <!-- Upload zone -->
+              <div style="margin-bottom:16px">
+                <div class="meli-upload-box" id="uploadBox" onclick="document.getElementById('inputMeli').click()">
+                  <div style="font-size:32px;margin-bottom:8px">📥</div>
+                  <div style="font-weight:600;margin-bottom:4px">Subir Excel de Meli</div>
+                  <div style="font-size:12px;color:var(--color-text-muted)">Hacé clic o arrastrá el archivo .xlsx</div>
                 </div>
-                <button class="btn btn-secondary" onclick="generarFilas()">Generar filas</button>
+                <input type="file" id="inputMeli" accept=".xlsx,.xls" style="display:none"
+                       onchange="procesarExcelMeli(this.files[0]); this.value=''">
               </div>
 
-              <!-- Sync panel Paso 2 (Mejora 14 — todos los roles) -->
+              <!-- Sync panel Paso 2 -->
               <div class="sync-collapsible-section" style="margin-bottom:16px">
                 <button class="sync-toggle-btn" onclick="toggleSyncPanel2()">
                   <span>↻ Actualizar datos maestros</span>
@@ -198,6 +201,7 @@
 
               <!-- Tabla dinámica -->
               <div id="tablaSection" style="display:none">
+                <div id="meliAlertaNoValidados" class="error-msg" style="display:none;margin-bottom:10px;"></div>
                 <div class="trips-table-wrap">
                   <table class="trips-table">
                     <thead>
@@ -226,6 +230,7 @@
 
                 <div style="margin-top:12px;font-size:12px;color:var(--color-text-muted)">
                   Campos marcados con <strong style="color:var(--color-danger)">*</strong> son obligatorios.
+                  Campos en <strong style="color:#f59e0b">naranja</strong> no fueron encontrados — corregalos antes de cargar.
                 </div>
 
                 <div id="validacionError" class="error-msg" style="display:none;margin-top:10px;"></div>
@@ -248,7 +253,7 @@
             <div class="card">
               <div class="success-panel">
                 <div class="success-icon">✅</div>
-                <h2>¡Viajes cargados correctamente!</h2>
+                <h2>¡Viajes Meli cargados correctamente!</h2>
                 <p>La planilla fue generada y guardada en Google Drive.</p>
                 <div class="success-actions">
                   <a id="successFileUrl" href="#" target="_blank" class="btn btn-primary">
@@ -294,7 +299,7 @@
         </div>
       </div>
       <p style="font-size:13px;color:var(--color-text-muted);">
-        Se generará el Excel y se registrarán los viajes en el sistema. Esta acción no se puede deshacer.
+        Se generará la planilla y se registrarán los viajes en el sistema. Esta acción no se puede deshacer.
       </p>
       <div class="modal-actions">
         <button class="btn btn-outline" onclick="cerrarConfirm()">Cancelar</button>
@@ -394,6 +399,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="js/api.js"></script>
-  <script src="js/viajes.js"></script>
+  <script src="js/viajes_meli.js"></script>
 </body>
 </html>

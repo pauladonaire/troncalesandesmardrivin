@@ -18,9 +18,15 @@ function crearPlanillaViajes(token, viajes, planDatos) {
     var ss    = SpreadsheetApp.create(nombre);
     var ssId  = ss.getId();
     var archivo = DriveApp.getFileById(ssId);
-    var folder  = DriveApp.getFolderById(CONFIG.DRIVE.FOLDER_ID);
-    folder.addFile(archivo);
-    try { DriveApp.getRootFolder().removeFile(archivo); } catch(ignore) {}
+
+    // Mover a carpeta destino (no crítico si falla)
+    try {
+      var folder = DriveApp.getFolderById(CONFIG.DRIVE.FOLDER_ID);
+      folder.addFile(archivo);
+      try { DriveApp.getRootFolder().removeFile(archivo); } catch(eRem) {}
+    } catch(eFold) {
+      console.warn('No se pudo mover a carpeta destino: ' + eFold.message);
+    }
 
     var hoja    = ss.getActiveSheet();
     hoja.setName('Viajes');
@@ -39,7 +45,7 @@ function crearPlanillaViajes(token, viajes, planDatos) {
 
     return { ok: true, fileUrl: archivo.getUrl(), fileId: ssId };
   } catch(e) {
-    console.error('crearPlanillaViajes error: ' + e.message);
+    console.error('crearPlanillaViajes error: ' + e.message + '\n' + e.stack);
     return { ok: false, error: e.message };
   }
 }

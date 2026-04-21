@@ -1,9 +1,25 @@
-// viajes.js
+// viajes_meli.js — Carga de viajes desde Excel de Mercado Libre
 
 let SESSION    = null;
 let planCreado = null;
 let codigoDespacho = '';
-const filaRefs = {}; // { idx: { dir, veh, arr, prov, ruta, cond, cond2, rutaFiltro } }
+const filaRefs = {};
+
+// ── COLUMNAS ESPERADAS EN EL EXCEL MELI ──
+// Travel ID        → Código Alternativo
+// Destino          → Dirección (se intenta matchear con DATOS.direcciones)
+// Vehículo tractor → Vehículo  (se intenta matchear con DATOS.flota)
+// Vehículo de carga→ Arrastre  (se intenta matchear con DATOS.arrastres)
+// Servicio         → Descripción
+// Conductor Princ. → Conductor (se intenta matchear con DATOS.tripulantes)
+// Conductor Adic.  → 2do Conductor
+// Unidad 1         → 25000 (fijo)
+// Proveedor        → TECH PACK SRL (fijo, matchea contra socios)
+
+const PROVEEDOR_MELI_FIJO = 'TECH PACK SRL';
+const UNIDADES_MELI_FIJAS = '25000';
+
+// ── INIT ──
 
 document.addEventListener('DOMContentLoaded', async () => {
   SESSION = requireSession();
@@ -32,7 +48,6 @@ function inicializarPaso1() {
   renderSteps(1);
   document.getElementById('paso1').classList.add('active');
 
-  // Sync visible para TODOS los roles (Mejora 6/14)
   const secSync = document.getElementById('secSyncViajes');
   if (secSync) secSync.style.display = 'block';
   const sbSync = document.getElementById('sbSyncItems');
@@ -43,11 +58,6 @@ function inicializarPaso1() {
     const sbDiv   = document.getElementById('sbAdminDivider');
     if (sbAdmin) sbAdmin.style.display = 'flex';
     if (sbDiv)   sbDiv.style.display   = 'block';
-  }
-  if (SESSION.rol === 'OPERACION_TRAFICO') {
-    const hoy = new Date().toISOString().split('T')[0];
-    document.getElementById('fechaViaje').min      = hoy;
-    document.getElementById('fechaMaxEntrega').min = hoy;
   }
   document.getElementById('formPlan').addEventListener('submit', submitCrearPlan);
 }
@@ -65,35 +75,182 @@ function submitCrearPlan(e) {
   transicionarPaso(2);
 }
 
-// ── PASO 2 ──
+// ── PASO 2 — Importar Excel de Meli ──
 
-function generarFilas() {
-  const cantidad = parseInt(document.getElementById('cantidadFilas').value, 10);
-  if (!cantidad || cantidad < 1 || cantidad > 50) { alert('Ingresá una cantidad entre 1 y 50.'); return; }
-  for (const k in filaRefs) delete filaRefs[k];
+function procesarExcelMeli(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = new Uint8Array(ev.target.result);
+      const wb   = XLSX.read(data, { type: 'array' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (rows.length < 2) { alert('El archivo no contiene datos.'); return; }
+      _generarDesdeRows(rows);
+    } catch (err) {
+      alert('Error al leer el Excel: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function _normHeader(s) {
+  return String(s)
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function _detectarColumnas(headers) {
+  const map = {};
+  headers.forEach((h, i) => {
+    const n = _normHeader(h);
+    if (map.altCode    === undefined && (n.includes('travel') || n.includes('id viaje') || n.includes('id de envio') || n.includes('shipment') || n === 'id')) map.altCode = i;
+    if (map.destino    === undefined && (n.includes('destino') || n.includes('destination') || n.includes('punto de entrega') || n.includes('cod dir') || n.includes('codigo dir') || n.includes('cod. dir'))) map.destino = i;
+    if (map.tractor    === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
+    if (map.arrastre   === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
+    if (map.servicio   === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
+    if (map.conductor  === undefined && (n.includes('conductor principal') || n.includes('chofer principal') || n === 'conductor' || n.includes('nombre conductor') || n.includes('nombre del conductor principal'))) map.conductor = i;
+    if (map.cond2      === undefined && (n.includes('adicional') || n.includes('segundo conductor') || n.includes('2do conductor') || n.includes('chofer adicional') || n.includes('nombre del conductor adicional'))) map.cond2 = i;
+  });
+  return map;
+}
+
+function _generarDesdeRows(rows) {
+  const headers  = rows[0];
+  const colMap   = _detectarColumnas(headers);
+  const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+
+  if (!dataRows.length) { alert('No hay filas con datos en el archivo.'); return; }
+
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   codigoDespacho = `${String(now.getFullYear()).slice(-2)}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${SESSION.iniciales}`;
+
+  for (const k in filaRefs) delete filaRefs[k];
   const tbody = document.getElementById('tripsTbody');
   tbody.innerHTML = '';
-  for (let i = 0; i < cantidad; i++) tbody.appendChild(crearFila(i));
+
+  let noValidados = 0;
+
+  dataRows.forEach((row, i) => {
+    const altCode   = colMap.altCode   !== undefined ? String(row[colMap.altCode]   || '').trim() : '';
+    const destRaw   = colMap.destino   !== undefined ? String(row[colMap.destino]   || '').trim() : '';
+    const tractRaw  = colMap.tractor   !== undefined ? String(row[colMap.tractor]   || '').trim() : '';
+    const arrastRaw = colMap.arrastre  !== undefined ? String(row[colMap.arrastre]  || '').trim() : '';
+    const servicio  = colMap.servicio  !== undefined ? String(row[colMap.servicio]  || '').trim() : '';
+    const condRaw   = colMap.conductor !== undefined ? String(row[colMap.conductor] || '').trim() : '';
+    const cond2Raw  = colMap.cond2     !== undefined ? String(row[colMap.cond2]     || '').trim() : '';
+
+    const dirMatch   = _buscarDireccion(destRaw);
+    const vehMatch   = _buscarVehiculo(tractRaw);
+    const arrMatch   = _buscarArrastre(arrastRaw);
+    const condMatch  = _buscarConductor(condRaw);
+    const cond2Match = _buscarConductor(cond2Raw);
+    const provMatch  = _buscarProveedor(PROVEEDOR_MELI_FIJO);
+
+    if (!dirMatch  && destRaw)  noValidados++;
+    if (!vehMatch  && tractRaw) noValidados++;
+    if (!condMatch && condRaw)  noValidados++;
+
+    const datos = {
+      codigoDespacho: codigoDespacho + '-' + (i + 1),
+      altCode, unidades1: UNIDADES_MELI_FIJAS,
+      dirMatch, dirRaw: destRaw,
+      vehMatch, vehRaw: tractRaw,
+      arrMatch, arrastRaw,
+      servicio,
+      condMatch, condRaw,
+      cond2Match, cond2Raw,
+      provMatch
+    };
+    tbody.appendChild(crearFilaMeli(i, datos));
+  });
+
   document.getElementById('tablaSection').style.display    = 'block';
   document.getElementById('btnCargarViajes').style.display = 'inline-flex';
   document.getElementById('validacionError').style.display = 'none';
+
+  const alerta = document.getElementById('meliAlertaNoValidados');
+  if (noValidados > 0) {
+    alerta.textContent = `${noValidados} campo(s) con valores no encontrados en el sistema (marcados en naranja). Podés corregirlos antes de cargar.`;
+    alerta.style.display = 'block';
+  } else {
+    alerta.style.display = 'none';
+  }
+
+  const uploadBox = document.getElementById('uploadBox');
+  if (uploadBox) {
+    uploadBox.style.borderColor = '#01feff';
+    uploadBox.style.background  = 'rgba(1,254,255,0.04)';
+    const label = uploadBox.querySelector('div:nth-child(2)');
+    if (label) label.textContent = `${dataRows.length} fila(s) importadas — ${uploadBox.querySelector('div:nth-child(2)')?.textContent}`;
+  }
 }
 
-function crearFila(idx) {
+// ── Match helpers ──
+
+function _buscarDireccion(raw) {
+  if (!raw) return null;
+  const norm = raw.trim().toUpperCase();
+  return (window.DATOS.direcciones || []).find(d =>
+    String(d.code || '').toUpperCase() === norm ||
+    String(d.name || '').toUpperCase() === norm
+  ) || null;
+}
+
+function _buscarVehiculo(raw) {
+  if (!raw) return null;
+  const norm = raw.trim().toUpperCase();
+  return (window.DATOS.flota || []).find(v =>
+    String(v.code || '').toUpperCase() === norm
+  ) || null;
+}
+
+function _buscarArrastre(raw) {
+  if (!raw) return null;
+  const norm = raw.trim().toUpperCase();
+  const item = (window.DATOS.arrastres || []).find(a => {
+    const vals = Object.values(a);
+    return String(vals[0] || '').toUpperCase() === norm;
+  });
+  return item ? String(Object.values(item)[0] || '') : null;
+}
+
+function _buscarProveedor(nombre) {
+  if (!nombre) return null;
+  const norm = nombre.trim().toLowerCase();
+  return (window.DATOS.socios || []).find(s =>
+    String(s.type || '').toLowerCase() === 'supplier' &&
+    String(s.name || '').toLowerCase() === norm
+  ) || null;
+}
+
+function _buscarConductor(raw) {
+  if (!raw) return null;
+  const norm = raw.trim().toLowerCase();
+  return (window.DATOS.tripulantes || []).find(t =>
+    String(t.nombre_completo || '').toLowerCase() === norm
+  ) || null;
+}
+
+// ── Crear fila desde datos Meli ──
+
+function crearFilaMeli(idx, datos) {
   const tr = document.createElement('tr');
   tr.dataset.idx = idx;
   tr.innerHTML = `
-    <td class="col-despacho"><input type="text" class="f-despacho" value="${escapeHtml(codigoDespacho + '-' + (idx + 1))}" readonly></td>
-    <td class="col-alt"><input type="text" class="f-alt" data-campo="codigoAlternativo" placeholder="*"></td>
-    <td class="col-uni"><input type="number" class="f-uni1" min="1" step="1" placeholder="*"></td>
+    <td class="col-despacho"><input type="text" class="f-despacho" value="${escapeHtml(datos.codigoDespacho)}" readonly></td>
+    <td class="col-alt"><input type="text" class="f-alt" data-campo="codigoAlternativo" value="${escapeHtml(datos.altCode)}" placeholder="*"></td>
+    <td class="col-uni"><input type="number" class="f-uni1" min="1" step="1" value="${escapeHtml(datos.unidades1)}" placeholder="*"></td>
     <td class="col-uni"><input type="number" class="f-uni2" min="0" step="1" placeholder="0"></td>
     <td class="col-uni"><input type="number" class="f-uni3" min="0" step="1" placeholder="0"></td>
-    <td class="col-dir"      id="td-dir-${idx}"></td>
-    <td class="col-vehiculo" id="td-veh-${idx}"></td>
-    <td class="col-arrastre" id="td-arr-${idx}"></td>
+    <td class="col-dir"       id="td-dir-${idx}"></td>
+    <td class="col-vehiculo"  id="td-veh-${idx}"></td>
+    <td class="col-arrastre"  id="td-arr-${idx}"></td>
     <td class="col-empleador" id="td-emp-${idx}"><span class="empleador-value text-muted">—</span></td>
     <td class="col-etiqueta"  id="td-costo-${idx}"><span class="no-etiquetas text-muted">—</span></td>
     <td class="col-proveedor" id="td-prov-${idx}"></td>
@@ -101,7 +258,7 @@ function crearFila(idx) {
     <td class="col-ruta"      id="td-ruta-${idx}"></td>
     <td class="col-conductor" id="td-cond-${idx}"></td>
     <td class="col-conductor" id="td-cond2-${idx}"></td>
-    <td class="col-descripcion"><input type="text" class="f-desc" placeholder="Opcional"></td>
+    <td class="col-descripcion"><input type="text" class="f-desc" value="${escapeHtml(datos.servicio)}" placeholder="Opcional"></td>
   `;
 
   const refs = { rutaFiltro: '' };
@@ -116,9 +273,9 @@ function crearFila(idx) {
   });
 
   refs.veh = crearDropdownBuscable({
-    inputClass:   'f-vehiculo',
-    placeholder:  'Buscar vehículo... *',
-    opcionesFn:   () => (window.DATOS.flota || []).map(v => ({
+    inputClass:  'f-vehiculo',
+    placeholder: 'Buscar vehículo... *',
+    opcionesFn:  () => (window.DATOS.flota || []).map(v => ({
       value: v.code,
       label: `${v.code}${v.description ? ' — ' + v.description : ''} | ${v.employer_name || 'Sin empleador'}`
     })),
@@ -154,7 +311,7 @@ function crearFila(idx) {
     opcionesFn:  () => {
       const filtro = filaRefs[idx]?.rutaFiltro || '';
       const all = (window.DATOS.rutas || []).map(r => {
-        const vals = Object.values(r);
+        const vals   = Object.values(r);
         const nombre = String(vals[0] || '');
         const prov   = String(vals[1] || '');
         return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov };
@@ -196,10 +353,65 @@ function crearFila(idx) {
   tr.querySelector(`#td-ruta-${idx}`).appendChild(refs.ruta.wrap);
   tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.wrap);
   tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.wrap);
+
+  // Pre-fill dirección
+  if (datos.dirMatch) {
+    refs.dir.setValue(datos.dirMatch.code, `[${datos.dirMatch.code}] — ${datos.dirMatch.name}`);
+  } else if (datos.dirRaw) {
+    refs.dir.input.value            = datos.dirRaw;
+    refs.dir.input.dataset.value    = datos.dirRaw;
+    refs.dir.input.classList.add('no-validado');
+  }
+
+  // Pre-fill vehículo
+  if (datos.vehMatch) {
+    refs.veh.setValue(datos.vehMatch.code, datos.vehMatch.code);
+    onVehiculoChange(idx, datos.vehMatch.code);
+  } else if (datos.vehRaw) {
+    refs.veh.input.value            = datos.vehRaw;
+    refs.veh.input.dataset.value    = datos.vehRaw;
+    refs.veh.input.classList.add('no-validado');
+  }
+
+  // Pre-fill arrastre
+  if (datos.arrMatch) {
+    refs.arr.setValue(datos.arrMatch, datos.arrMatch);
+  } else if (datos.arrastRaw) {
+    refs.arr.input.value            = datos.arrastRaw;
+    refs.arr.input.dataset.value    = datos.arrastRaw;
+    refs.arr.input.classList.add('no-validado');
+  }
+
+  // Proveedor (fijo TECH PACK SRL)
+  const provNombre = datos.provMatch ? datos.provMatch.name : PROVEEDOR_MELI_FIJO;
+  refs.prov.setValue(provNombre, provNombre);
+  if (!datos.provMatch) refs.prov.input.classList.add('no-validado');
+  onProveedorChange(idx, provNombre);
+
+  // Pre-fill conductor principal
+  if (datos.condMatch) {
+    refs.cond.setValue(datos.condMatch.nombre_completo, datos.condMatch.nombre_completo);
+    refs.cond.input.dataset.extra = JSON.stringify({ nombre: datos.condMatch.nombre_completo, email: datos.condMatch.email || '' });
+  } else if (datos.condRaw) {
+    refs.cond.input.value           = datos.condRaw;
+    refs.cond.input.dataset.value   = datos.condRaw;
+    refs.cond.input.classList.add('no-validado');
+  }
+
+  // Pre-fill 2do conductor
+  if (datos.cond2Match) {
+    refs.cond2.setValue(datos.cond2Match.nombre_completo, datos.cond2Match.nombre_completo);
+    refs.cond2.input.dataset.extra = JSON.stringify({ nombre: datos.cond2Match.nombre_completo, email: datos.cond2Match.email || '' });
+  } else if (datos.cond2Raw) {
+    refs.cond2.input.value          = datos.cond2Raw;
+    refs.cond2.input.dataset.value  = datos.cond2Raw;
+    refs.cond2.input.classList.add('no-validado');
+  }
+
   return tr;
 }
 
-// ── Dropdown buscable unificado (Mejora 9) ──
+// ── Dropdown buscable ──
 
 function crearDropdownBuscable({ inputClass = '', placeholder = '', opcionesFn, onChange = null, deshabilitadosFn = null }) {
   const wrap  = document.createElement('div');
@@ -217,11 +429,10 @@ function crearDropdownBuscable({ inputClass = '', placeholder = '', opcionesFn, 
 
   function poblar(q) {
     list.innerHTML = '';
-    const opciones      = opcionesFn ? opcionesFn() : [];
+    const opciones       = opcionesFn ? opcionesFn() : [];
     const deshabilitados = deshabilitadosFn ? deshabilitadosFn() : [];
     const norm      = q.trim().toLowerCase();
     const filtradas = norm ? opciones.filter(o => o.label.toLowerCase().includes(norm)) : opciones;
-
     if (!filtradas.length) {
       const el = document.createElement('div');
       el.className = 'dropdown-option no-results';
@@ -240,10 +451,10 @@ function crearDropdownBuscable({ inputClass = '', placeholder = '', opcionesFn, 
         el.addEventListener('mousedown', e => {
           e.preventDefault();
           input.dataset.value = opcion.value;
-          input.value = opcion.labelCorto || opcion.label;
+          input.value         = opcion.labelCorto || opcion.label;
           if (opcion.extra !== undefined) input.dataset.extra = JSON.stringify(opcion.extra);
+          input.classList.remove('error', 'no-validado');
           list.classList.remove('open');
-          input.classList.remove('error');
           if (onChange) onChange(opcion.value, opcion.label, opcion);
         });
       }
@@ -279,7 +490,7 @@ function abrirDropdown(inputEl, listaEl) {
   listaEl.classList.add('open');
 }
 
-// ── Conductores sin duplicar (Mejora 16) ──
+// ── Conductores sin duplicar ──
 
 function getConductoresYaUsados(filaIdx, campo) {
   const usados = new Set();
@@ -290,7 +501,7 @@ function getConductoresYaUsados(filaIdx, campo) {
     const c1 = r.cond?.getValue();
     const c2 = r.cond2?.getValue();
     if (i === filaIdx) {
-      if (campo === 'conductor'       && c2) usados.add(c2);
+      if (campo === 'conductor'        && c2) usados.add(c2);
       if (campo === 'segundoConductor' && c1) usados.add(c1);
     } else {
       if (c1) usados.add(c1);
@@ -331,7 +542,7 @@ function getEmpleadorDeFila(idx) {
   return document.getElementById('td-emp-' + idx)?.dataset.empleador || '';
 }
 
-// ── Vigencia (Mejora 15) ──
+// ── Vigencia ──
 
 function estaVigente(vigenciaDesde, vigenciaHasta) {
   if (!vigenciaDesde || !vigenciaHasta) return false;
@@ -353,7 +564,7 @@ function parsearFecha(valor) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-// ── Etiquetas Costo — vehículo → employer → col M(12) → col AA(26) (Mejora 7) ──
+// ── Etiquetas Costo ──
 
 function actualizarEtiquetasCosto(idx, vehiculoCode) {
   const td = document.getElementById('td-costo-' + idx);
@@ -376,7 +587,7 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
   td.appendChild(crearMultiSelect(idx, 'costo', items));
 }
 
-// ── Etiquetas Ingreso — proveedor → col L(11) → col AA(26) (Mejora 7) ──
+// ── Etiquetas Ingreso ──
 
 function actualizarEtiquetasIngreso(idx, proveedorNombre) {
   const td = document.getElementById('td-ingreso-' + idx);
@@ -398,14 +609,12 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
   td.appendChild(crearMultiSelect(idx, 'ingreso', items));
 }
 
-// ── Proveedor change → ingreso + rutas (Mejoras 7+8) ──
-
 function onProveedorChange(idx, prov) {
   actualizarEtiquetasIngreso(idx, prov);
   if (filaRefs[idx]) filaRefs[idx].rutaFiltro = prov;
 }
 
-// ── Multi-select con vigencia (Mejora 15) ──
+// ── Multi-select con vigencia ──
 
 function crearMultiSelect(idx, tipo, items) {
   const wrap = document.createElement('div');
@@ -415,7 +624,6 @@ function crearMultiSelect(idx, tipo, items) {
 
   const pills = document.createElement('div');
   pills.className = 'multi-pills';
-
   const ph = document.createElement('span');
   ph.className   = 'pills-placeholder';
   ph.textContent = 'Seleccionar...';
@@ -446,9 +654,9 @@ function crearMultiSelect(idx, tipo, items) {
     lbl.className = 'multi-option';
     const vigente = estaVigente(item.vigenciaDesde, item.vigenciaHasta);
     if (!vigente) { lbl.classList.add('fuera-vigencia'); lbl.title = 'Fuera de período de vigencia'; }
-    const cb  = document.createElement('input');
-    cb.type   = 'checkbox';
-    cb.value  = item.etiqueta;
+    const cb = document.createElement('input');
+    cb.type  = 'checkbox';
+    cb.value = item.etiqueta;
     cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph, items));
     lbl.appendChild(cb);
     lbl.appendChild(document.createTextNode(' ' + item.etiqueta));
@@ -508,7 +716,7 @@ function renderPills(pills, ph, selected, wrap, items) {
   });
 }
 
-// ── Validación (Mejoras 5+18) ──
+// ── Validación ──
 
 function validarFilas() {
   let ok = true;
@@ -559,22 +767,22 @@ function recolectarViajes() {
     const cExtra  = refs.cond?.getExtra()  || {};
     const c2Extra = refs.cond2?.getExtra() || {};
     viajes.push({
-      codigoDespacho: tr.querySelector('.f-despacho')?.value || '',
-      codigoAlternativo:      tr.querySelector('.f-alt')?.value  || '',
-      unidades1:              tr.querySelector('.f-uni1')?.value  || '',
-      unidades2:              tr.querySelector('.f-uni2')?.value  || '',
-      unidades3:              tr.querySelector('.f-uni3')?.value  || '',
-      codigoDireccion:        refs.dir?.getValue()                || '',
-      vehiculo:               refs.veh?.getValue()                || '',
-      arrastre:               refs.arr?.getValue()                || '',
+      codigoDespacho:         tr.querySelector('.f-despacho')?.value || '',
+      codigoAlternativo:      tr.querySelector('.f-alt')?.value      || '',
+      unidades1:              tr.querySelector('.f-uni1')?.value     || '',
+      unidades2:              tr.querySelector('.f-uni2')?.value     || '',
+      unidades3:              tr.querySelector('.f-uni3')?.value     || '',
+      codigoDireccion:        refs.dir?.getValue()                   || '',
+      vehiculo:               refs.veh?.getValue()                   || '',
+      arrastre:               refs.arr?.getValue()                   || '',
       empleador:              getEmpleadorDeFila(idx),
       etiquetasCosto:         msC ? JSON.parse(msC.dataset.selected || '[]') : [],
-      proveedor:              refs.prov?.getValue()               || '',
+      proveedor:              refs.prov?.getValue()                  || '',
       etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
-      rutaMaestra:            refs.ruta?.getValue()               || '',
-      conductorEmail:         cExtra.email                        || '',
-      segundoConductorNombre: c2Extra.nombre                      || '',
-      descripcionViaje:       tr.querySelector('.f-desc')?.value  || ''
+      rutaMaestra:            refs.ruta?.getValue()                  || '',
+      conductorEmail:         cExtra.email                           || '',
+      segundoConductorNombre: c2Extra.nombre                         || '',
+      descripcionViaje:       tr.querySelector('.f-desc')?.value     || ''
     });
   });
   return viajes;
@@ -617,7 +825,7 @@ async function confirmarCarga() {
   }
 }
 
-// ── Ejecutar carga — crea plan en Driv.in y luego planilla en Drive ──
+// ── Ejecutar carga ──
 
 async function ejecutarCarga(viajes) {
   const overlay = document.getElementById('loadingOverlay');
@@ -638,15 +846,21 @@ async function ejecutarCarga(viajes) {
 // ── Nuevo plan ──
 
 function nuevoPlan() {
-  planCreado = null;
+  planCreado     = null;
   codigoDespacho = '';
   for (const k in filaRefs) delete filaRefs[k];
   document.getElementById('tripsTbody').innerHTML          = '';
   document.getElementById('tablaSection').style.display    = 'none';
   document.getElementById('btnCargarViajes').style.display = 'none';
   document.getElementById('pasoExito').style.display       = 'none';
+  document.getElementById('meliAlertaNoValidados').style.display = 'none';
   document.getElementById('formPlan').reset();
   document.getElementById('errorPlan').textContent         = '';
+  const uploadBox = document.getElementById('uploadBox');
+  if (uploadBox) {
+    uploadBox.style.borderColor = '';
+    uploadBox.style.background  = '';
+  }
   transicionarPaso(1);
 }
 
@@ -703,7 +917,7 @@ function toggleSyncPanel2() {
   if (arrow) arrow.textContent = panel.classList.contains('open') ? '▲' : '▼';
 }
 
-// ── Sync + refrescar (Mejoras 6/14/19) ──
+// ── Sync datos maestros ──
 
 async function syncViajesDatos(accion, badgeId, btnId) {
   const btn   = document.getElementById(btnId);
@@ -733,29 +947,19 @@ async function syncViajesDatos(accion, badgeId, btnId) {
   }
 }
 
-// Mejora 19: refrescar etiquetas preservando selección
 function refrescarFilasExistentes() {
   document.querySelectorAll('#tripsTbody tr').forEach(tr => {
     const idx  = Number(tr.dataset.idx);
     const refs = filaRefs[idx];
     if (!refs) return;
-
     const msC = document.getElementById(`ms-costo-${idx}`);
     const msI = document.getElementById(`ms-ingreso-${idx}`);
     const prevCosto   = msC ? JSON.parse(msC.dataset.selected || '[]') : [];
     const prevIngreso = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
-
-    const vCode = refs.veh?.getValue();
+    const vCode  = refs.veh?.getValue();
     const pNombre = refs.prov?.getValue();
-
-    if (vCode) {
-      actualizarEtiquetasCosto(idx, vCode);
-      _restaurarMultiSelect(`ms-costo-${idx}`, prevCosto);
-    }
-    if (pNombre) {
-      actualizarEtiquetasIngreso(idx, pNombre);
-      _restaurarMultiSelect(`ms-ingreso-${idx}`, prevIngreso);
-    }
+    if (vCode) { actualizarEtiquetasCosto(idx, vCode);    _restaurarMultiSelect(`ms-costo-${idx}`,   prevCosto); }
+    if (pNombre) { actualizarEtiquetasIngreso(idx, pNombre); _restaurarMultiSelect(`ms-ingreso-${idx}`, prevIngreso); }
   });
 }
 
@@ -772,7 +976,6 @@ function _restaurarMultiSelect(msId, prevSelected) {
   );
   ms.dataset.selected = JSON.stringify(stillValid);
   if (pills && ph) {
-    // Rebuild pills with current item metadata
     const items = Array.from(ms.querySelectorAll('label.multi-option')).map(lbl => {
       const cb = lbl.querySelector('input');
       return { etiqueta: cb?.value || '', vigenciaDesde: '', vigenciaHasta: '' };
@@ -824,7 +1027,8 @@ async function submitCambiarPass(e) {
   }
 }
 
-// Cerrar dropdowns al hacer scroll
+// ── Cerrar dropdowns al hacer scroll ──
+
 document.addEventListener('scroll', function() {
   document.querySelectorAll('.dropdown-list.open').forEach(el => el.classList.remove('open'));
   document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
