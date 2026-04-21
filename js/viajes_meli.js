@@ -803,9 +803,11 @@ function recolectarViajes() {
     const msI   = document.getElementById(`ms-ingreso-${idx}`);
     const cExtra  = refs.cond?.getExtra()  || {};
     const c2Extra = refs.cond2?.getExtra() || {};
+    const _despacho = tr.querySelector('.f-despacho')?.value || '';
+    const _alt      = tr.querySelector('.f-alt')?.value      || '';
     viajes.push({
-      codigoDespacho:         tr.querySelector('.f-despacho')?.value || '',
-      codigoAlternativo:      tr.querySelector('.f-alt')?.value      || '',
+      codigoDespacho:         _alt ? (_despacho + ' | ' + _alt) : _despacho,
+      codigoAlternativo:      _alt,
       unidades1:              tr.querySelector('.f-uni1')?.value     || '',
       unidades2:              tr.querySelector('.f-uni2')?.value     || '',
       unidades3:              tr.querySelector('.f-uni3')?.value     || '',
