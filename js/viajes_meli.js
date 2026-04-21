@@ -673,6 +673,8 @@ function crearMultiSelect(idx, tipo, items) {
   searchInput.addEventListener('keydown',   e => { if (e.key === 'Escape') dropdown.classList.remove('open'); });
   searchWrap.appendChild(searchInput);
   dropdown.appendChild(searchWrap);
+  dropdown.addEventListener('mousedown', e => e.stopPropagation());
+  dropdown.addEventListener('click',     e => e.stopPropagation());
 
   items.forEach(item => {
     const lbl = document.createElement('label');
@@ -684,7 +686,9 @@ function crearMultiSelect(idx, tipo, items) {
     cb.value = item.etiqueta;
     cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph, items));
     lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(' ' + item.etiqueta));
+    const span = document.createElement('span');
+    span.textContent = item.etiqueta;
+    lbl.appendChild(span);
     dropdown.appendChild(lbl);
   });
 

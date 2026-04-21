@@ -276,14 +276,19 @@
 
 .multi-option {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 6px;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 5px 6px;
   cursor: pointer;
   font-size: 12px;
+  line-height: 1.35;
 }
 .multi-option:hover { background: rgba(1,254,255,0.08); }
-.multi-option input[type="checkbox"] { accent-color: var(--color-primary); }
+.multi-option input[type="checkbox"] {
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
 
 .no-etiquetas { font-size: 12px; color: var(--color-text-muted); padding: 6px 4px; }
 
