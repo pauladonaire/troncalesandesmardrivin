@@ -686,9 +686,7 @@ function crearMultiSelect(idx, tipo, items) {
     cb.value = item.etiqueta;
     cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph, items));
     lbl.appendChild(cb);
-    const span = document.createElement('span');
-    span.textContent = item.etiqueta;
-    lbl.appendChild(span);
+    lbl.appendChild(document.createTextNode(item.etiqueta));
     dropdown.appendChild(lbl);
   });
 
