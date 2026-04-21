@@ -109,7 +109,7 @@ function _detectarColumnas(headers) {
   // Primera pasada: buscar columnas con "nombre" (prioridad alta, evita "ID del Conductor")
   headers.forEach((h, i) => {
     const n = _normHeader(h);
-    if (map.altCode   === undefined && (n.includes('travel') || n.includes('id viaje') || n.includes('id de envio') || n.includes('shipment') || n === 'id')) map.altCode = i;
+    if (map.altCode   === undefined && (n.includes('Travel ID') || n.includes('id viaje') || n.includes('id de envio') || n.includes('shipment') || n === 'id')) map.altCode = i;
     if (map.destino   === undefined && (n.includes('destino') || n.includes('destination') || n.includes('punto de entrega') || n.includes('cod dir') || n.includes('codigo dir') || n.includes('cod. dir'))) map.destino = i;
     if (map.tractor   === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
     if (map.arrastre  === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
