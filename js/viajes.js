@@ -956,13 +956,7 @@ function recolectarViajes() {
 // ── Cargar viajes ──
 
 function cargarViajes() {
-  if (!validarFilas()) {
-    const errEl = document.getElementById('validacionError');
-    errEl.textContent = 'Completá los campos obligatorios marcados en rojo (*).';
-    errEl.style.display = 'block';
-    document.querySelector('#tripsTbody .error')?.closest('tr')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
-  }
+  validarFilas();
   document.getElementById('validacionError').style.display = 'none';
   const viajes = recolectarViajes();
   document.getElementById('resNViajes').textContent    = viajes.length;
