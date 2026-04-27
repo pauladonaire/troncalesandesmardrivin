@@ -503,7 +503,7 @@ function crearDropdownSimple({ opciones = [], placeholder = 'Seleccionar...', me
     inputBusqueda.value = '';
     renderItems('');
     posicionar();
-    panel.style.display = 'block';
+    panel.style.display = 'flex';
     inputBusqueda.focus();
   }
 
