@@ -27,6 +27,10 @@ function doPost(e) {
       'toggleUsuarioActivo':   () => toggleUsuarioActivo(token, data.emailTarget, data.activo),
       'addRutaMaestra':        () => addRutaMaestra(token, data.datos),
       'addArrastre':           () => addArrastre(token, data.datos),
+      'getDatosRutas':         () => getDatosRutas(token),
+      'addRutasMaestras':      () => addRutasMaestras(token, data.filas),
+      'getDatosArrastres':     () => getDatosArrastres(token),
+      'addArrastres':          () => addArrastres(token, data.filas),
     };
 
     const handler = routes[action];

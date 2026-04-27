@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rutas Maestras — Troncales</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/datos.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <a href="dashboard.html" style="text-decoration:none">
+          <span class="brand-name">TRONCALES</span>
+        </a>
+      </div>
+      <div class="header-user">
+        <span id="userName"></span>
+        <span id="userRolBadge" class="badge badge-info"></span>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <div class="app-body" style="overflow-y:auto; flex-direction:column;">
+      <main style="padding:24px; max-width:1200px; width:100%;">
+
+        <div id="initLoader" class="init-loader-datos">
+          <span class="spinner"></span>
+          <span>Cargando rutas maestras...</span>
+        </div>
+        <div id="initError" class="error-msg" style="display:none; padding:20px;"></div>
+
+        <div id="contenido" style="display:none">
+          <div class="datos-header">
+            <h1 class="datos-title">Rutas Maestras</h1>
+            <a href="dashboard.html" class="btn btn-outline btn-sm">← Dashboard</a>
+          </div>
+
+          <div class="pestanas">
+            <button class="pestana-btn activa" id="tabVer" onclick="cambiarPestana('ver')">Ver Rutas</button>
+            <button class="pestana-btn" id="tabCargar" onclick="cambiarPestana('cargar')">Cargar Rutas</button>
+          </div>
+
+          <!-- Tab VER -->
+          <div id="panelVer">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+              <input type="text" id="buscadorRutas" class="buscador-tabla"
+                     placeholder="Buscar por nombre, proveedor..." oninput="filtrarRutas()">
+              <span id="badgeCantidad" class="badge-cantidad">0 rutas</span>
+            </div>
+            <div class="table-responsive">
+              <table id="tablaRutas">
+                <thead id="theadRutas"></thead>
+                <tbody id="tbodyRutas"></tbody>
+              </table>
+            </div>
+            <p id="sinDatos" style="display:none;color:var(--color-text-muted);font-size:13px;padding:20px 0;">
+              No hay rutas maestras cargadas.
+            </p>
+          </div>
+
+          <!-- Tab CARGAR -->
+          <div id="panelCargar" style="display:none">
+            <div class="card">
+              <h2 class="card-title">Agregar Rutas Maestras</h2>
+              <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+                <div class="form-group" style="margin:0;flex:0 0 auto;">
+                  <label>¿Cuántas rutas?</label>
+                  <input type="number" id="cantRutas" min="1" max="20" value="1"
+                         style="width:80px;padding:8px 10px;background:var(--color-background);border:1px solid var(--color-border);border-radius:4px;color:var(--color-white);font-size:13px;outline:none;">
+                </div>
+                <button class="btn btn-secondary" onclick="generarFilasRutas()">Generar filas</button>
+              </div>
+              <div id="filasRutas"></div>
+              <div id="errorRutas" class="error-msg" style="display:none;margin-top:10px;"></div>
+              <div style="margin-top:16px;">
+                <button id="btnGuardarRutas" class="btn btn-primary" style="display:none" onclick="guardarRutas()">
+                  Guardar Rutas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toastNotif"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/rutas.js"></script>
+</body>
+</html>

@@ -77,3 +77,79 @@ function addArrastre(token, datos) {
   sheetsAppend_(cfg.id, cfg.tabs.ARRASTRES, [newRow]);
   return { ok: true };
 }
+
+// ─── Funciones con sesión para páginas Rutas y Arrastres ─────────────────────
+
+function getDatosRutas(token) {
+  var session = validateSession(token);
+  if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
+  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
+    return { ok: false, error: 'Sin permisos para esta operación' };
+  }
+  try {
+    var cfg    = CONFIG.SHEETS.OTROS_DATOS;
+    var values = sheetsRead_(cfg.id, cfg.tabs.RUTAS + '!A:Z') || [];
+    var headers = values.length > 0 ? values[0] : ['Nombre', 'Proveedor'];
+    var rutas   = values.length > 1 ? values.slice(1).filter(function(r) { return r[0]; }) : [];
+
+    var sociosValues = sheetsRead_(CONFIG.SHEETS.SOCIOS.id, CONFIG.SHEETS.SOCIOS.tab + '!A:F') || [];
+    var socios = sociosValues.slice(1)
+      .filter(function(r) { return r[3] === 'supplier'; })
+      .map(function(r) { return { name: r[2] || '' }; });
+
+    return { ok: true, rutas: rutas, headers: headers, socios: socios };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function addRutasMaestras(token, filas) {
+  var session = validateSession(token);
+  if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
+  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
+    return { ok: false, error: 'Sin permisos para esta operación' };
+  }
+  try {
+    var cfg  = CONFIG.SHEETS.OTROS_DATOS;
+    var rows = filas.map(function(f) { return Array.isArray(f) ? f : Object.values(f); });
+    sheetsAppend_(cfg.id, cfg.tabs.RUTAS, rows);
+    invalidarCacheDatosMaestros();
+    return { ok: true, count: filas.length };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function getDatosArrastres(token) {
+  var session = validateSession(token);
+  if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
+  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
+    return { ok: false, error: 'Sin permisos para esta operación' };
+  }
+  try {
+    var cfg      = CONFIG.SHEETS.OTROS_DATOS;
+    var values   = sheetsRead_(cfg.id, cfg.tabs.ARRASTRES + '!A:Z') || [];
+    var headers  = values.length > 0 ? values[0] : ['Código', 'Descripción'];
+    var arrastres = values.length > 1 ? values.slice(1).filter(function(r) { return r[0]; }) : [];
+    return { ok: true, arrastres: arrastres, headers: headers };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function addArrastres(token, filas) {
+  var session = validateSession(token);
+  if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
+  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
+    return { ok: false, error: 'Sin permisos para esta operación' };
+  }
+  try {
+    var cfg  = CONFIG.SHEETS.OTROS_DATOS;
+    var rows = filas.map(function(f) { return Array.isArray(f) ? f : Object.values(f); });
+    sheetsAppend_(cfg.id, cfg.tabs.ARRASTRES, rows);
+    invalidarCacheDatosMaestros();
+    return { ok: true, count: filas.length };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}

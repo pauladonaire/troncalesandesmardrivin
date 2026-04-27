@@ -147,6 +147,14 @@ function inicializarPaso1() {
     if (sbAdmin) sbAdmin.style.display = 'flex';
     if (sbDiv)   sbDiv.style.display   = 'block';
   }
+  if (SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO') {
+    const sbRutas        = document.getElementById('sbRutasLink');
+    const sbArrastres    = document.getElementById('sbArrastresLink');
+    const sbDatosDivider = document.getElementById('sbDatosDivider');
+    if (sbRutas)        sbRutas.style.display        = 'flex';
+    if (sbArrastres)    sbArrastres.style.display    = 'flex';
+    if (sbDatosDivider) sbDatosDivider.style.display = 'block';
+  }
   if (SESSION.rol === 'OPERACION_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min      = hoy;
@@ -185,6 +193,18 @@ function generarFilas() {
   document.getElementById('validacionError').style.display = 'none';
 }
 
+function getRutasOpciones(filtroProveedor) {
+  const all = (window.DATOS.rutas || []).map(r => {
+    const vals = Object.values(r);
+    const nombre = String(vals[0] || '');
+    const prov   = String(vals[1] || '');
+    return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov };
+  });
+  if (!filtroProveedor) return all;
+  const norm = filtroProveedor.toLowerCase();
+  return all.filter(r => r.rutaProv.toLowerCase() === norm || r.rutaProv === '');
+}
+
 function crearFila(idx) {
   const tr = document.createElement('tr');
   tr.dataset.idx = idx;
@@ -208,24 +228,36 @@ function crearFila(idx) {
     <td class="col-descripcion"><input type="text" class="f-desc" placeholder="Opcional"></td>
   `;
 
-  const refs = { rutaFiltro: '' };
+  const tripOpciones = (window.DATOS.tripulantes || []).map(t => ({
+    value: t.nombre_completo,
+    labelCorto: t.nombre_completo,
+    label: t.nombre_completo + ' — ' + t.email,
+    extra: { nombre: t.nombre_completo, email: t.email }
+  }));
 
-  refs.dir = crearDropdownBuscable({
-    inputClass:  'f-dir',
-    placeholder: 'Buscar dirección... *',
-    opcionesFn:  () => (window.DATOS.direcciones || []).map(d => ({
-      value: d.code, labelCorto: d.code,
-      label: `[${d.code}] — ${d.name} | ${d.address1}, ${d.city}`
-    }))
+  const refs = {};
+
+  refs.dir = crearDropdownSimple({
+    opciones: (window.DATOS.direcciones || []).map(d => ({
+      value: d.code,
+      labelCorto: d.code,
+      label: '[' + d.code + '] — ' + (d.name || '') + ' | ' + (d.address1 || '') + ', ' + (d.city || '')
+    })),
+    placeholder:  'Buscar dirección... *',
+    mensajeVacio: 'No hay direcciones cargadas',
+    onChange: () => {}
   });
 
-  refs.veh = crearDropdownBuscable({
-    inputClass:   'f-vehiculo',
-    placeholder:  'Buscar vehículo... *',
-    opcionesFn:   () => (window.DATOS.flota || []).map(v => ({
-      value: v.code,
-      label: `${v.code}${v.description ? ' — ' + v.description : ''} | ${v.employer_name || 'Sin empleador'}`
-    })),
+  refs.veh = crearDropdownSimple({
+    opciones: (window.DATOS.flota || [])
+      .filter(v => v.is_active === true || String(v.is_active).toLowerCase() === 'true')
+      .map(v => ({
+        value: v.code,
+        labelCorto: v.code,
+        label: v.code + (v.description ? ' — ' + v.description : '') + ' | ' + (v.employer_name || 'Sin empleador')
+      })),
+    placeholder:      'Buscar vehículo... *',
+    mensajeVacio:     'No hay vehículos disponibles',
     deshabilitadosFn: () => Object.keys(filaRefs)
       .filter(k => Number(k) !== idx)
       .map(k => filaRefs[k]?.veh?.getValue())
@@ -233,73 +265,58 @@ function crearFila(idx) {
     onChange: (value) => onVehiculoChange(idx, value)
   });
 
-  refs.arr = crearDropdownBuscable({
-    inputClass:  'f-arrastre',
-    placeholder: '— arrastre —',
-    opcionesFn:  () => (window.DATOS.arrastres || []).map(a => {
+  refs.arr = crearDropdownSimple({
+    opciones: (window.DATOS.arrastres || []).map(a => {
       const vals = Object.values(a);
       const v = String(vals[0] || '');
       return { value: v, label: v + (vals[1] ? ' — ' + vals[1] : '') };
-    })
+    }),
+    placeholder:  '— arrastre —',
+    mensajeVacio: 'No hay arrastres cargados',
+    onChange: () => {}
   });
 
-  refs.prov = crearDropdownBuscable({
-    inputClass:  'f-proveedor',
-    placeholder: 'Buscar proveedor... *',
-    opcionesFn:  () => (window.DATOS.socios || [])
+  refs.prov = crearDropdownSimple({
+    opciones: (window.DATOS.socios || [])
       .filter(s => String(s.type || '').toLowerCase() === 'supplier')
       .map(s => ({ value: s.name || '', label: s.name || '' })),
+    placeholder:  'Buscar proveedor... *',
+    mensajeVacio: 'No hay proveedores disponibles',
     onChange: (value) => onProveedorChange(idx, value)
   });
 
-  refs.ruta = crearDropdownBuscable({
-    inputClass:  'f-ruta',
-    placeholder: 'Buscar ruta... *',
-    opcionesFn:  () => {
-      const filtro = filaRefs[idx]?.rutaFiltro || '';
-      const all = (window.DATOS.rutas || []).map(r => {
-        const vals = Object.values(r);
-        const nombre = String(vals[0] || '');
-        const prov   = String(vals[1] || '');
-        return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov };
-      });
-      if (!filtro) return all;
-      const norm = filtro.toLowerCase();
-      return all.filter(r => r.rutaProv.toLowerCase() === norm || r.rutaProv === '');
-    }
+  refs.ruta = crearDropdownSimple({
+    opciones:     getRutasOpciones(''),
+    placeholder:  'Buscar ruta... *',
+    mensajeVacio: 'No hay rutas maestras cargadas',
+    onChange: () => {}
   });
 
-  refs.cond = crearDropdownBuscable({
-    inputClass:       'f-conductor',
+  refs.cond = crearDropdownSimple({
+    opciones:         tripOpciones,
     placeholder:      'Buscar conductor... *',
-    opcionesFn:       () => (window.DATOS.tripulantes || []).map(t => ({
-      value: t.nombre_completo, labelCorto: t.nombre_completo,
-      label: t.nombre_completo + ' — ' + t.email,
-      extra: { nombre: t.nombre_completo, email: t.email }
-    })),
-    deshabilitadosFn: () => getConductoresYaUsados(idx, 'conductor')
+    mensajeVacio:     'No hay conductores disponibles',
+    deshabilitadosFn: () => getConductoresYaUsados(idx, 'conductor'),
+    onChange: () => {}
   });
 
-  refs.cond2 = crearDropdownBuscable({
-    inputClass:       'f-segundo',
+  refs.cond2 = crearDropdownSimple({
+    opciones:         tripOpciones,
     placeholder:      '2do conductor...',
-    opcionesFn:       () => (window.DATOS.tripulantes || []).map(t => ({
-      value: t.nombre_completo, labelCorto: t.nombre_completo,
-      label: t.nombre_completo + ' — ' + t.email,
-      extra: { nombre: t.nombre_completo, email: t.email }
-    })),
-    deshabilitadosFn: () => getConductoresYaUsados(idx, 'segundoConductor')
+    mensajeVacio:     'No hay conductores disponibles',
+    deshabilitadosFn: () => getConductoresYaUsados(idx, 'segundoConductor'),
+    onChange: () => {}
   });
 
   filaRefs[idx] = refs;
 
-  tr.querySelector(`#td-dir-${idx}`).appendChild(refs.dir.wrap);
-  tr.querySelector(`#td-veh-${idx}`).appendChild(refs.veh.wrap);
-  tr.querySelector(`#td-arr-${idx}`).appendChild(refs.arr.wrap);
-  tr.querySelector(`#td-prov-${idx}`).appendChild(refs.prov.wrap);
-  tr.querySelector(`#td-ruta-${idx}`).appendChild(refs.ruta.wrap);
-  tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.wrap);
-  tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.wrap);
+  tr.querySelector(`#td-dir-${idx}`).appendChild(refs.dir.contenedor);
+  tr.querySelector(`#td-veh-${idx}`).appendChild(refs.veh.contenedor);
+  tr.querySelector(`#td-arr-${idx}`).appendChild(refs.arr.contenedor);
+  tr.querySelector(`#td-prov-${idx}`).appendChild(refs.prov.contenedor);
+  tr.querySelector(`#td-ruta-${idx}`).appendChild(refs.ruta.contenedor);
+  tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.contenedor);
+  tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.contenedor);
   return tr;
 }
 
@@ -394,6 +411,150 @@ function abrirDropdown(inputEl, listaEl) {
   listaEl.style.left  = rect.left + 'px';
   listaEl.style.width = Math.max(rect.width, 240) + 'px';
   listaEl.classList.add('open');
+}
+
+// ── Dropdown Simple (selección única con búsqueda, panel en body) ──
+
+function crearDropdownSimple({ opciones = [], placeholder = 'Seleccionar...', mensajeVacio = 'Sin opciones disponibles', onChange = () => {}, deshabilitadosFn = null }) {
+
+  let opcionesActuales    = opciones.slice();
+  let valorSeleccionado   = '';
+  let labelSeleccionado   = '';
+  let opcionSeleccionada  = null;
+  let deshabilitado       = false;
+
+  const contenedor = document.createElement('div');
+  contenedor.className = 'ds-contenedor';
+
+  const trigger = document.createElement('div');
+  trigger.className   = 'ds-trigger';
+  trigger.textContent = placeholder;
+  contenedor.appendChild(trigger);
+
+  const panel = document.createElement('div');
+  panel.className     = 'ds-panel';
+  panel.style.display = 'none';
+  document.body.appendChild(panel);
+
+  const inputBusqueda = document.createElement('input');
+  inputBusqueda.type        = 'text';
+  inputBusqueda.className   = 'ds-busqueda';
+  inputBusqueda.placeholder = 'Buscar...';
+  inputBusqueda.autocomplete = 'off';
+  panel.appendChild(inputBusqueda);
+
+  const listaItems = document.createElement('div');
+  listaItems.className = 'ds-lista';
+  panel.appendChild(listaItems);
+
+  function renderItems(filtro) {
+    listaItems.innerHTML = '';
+    const deshabilitados = deshabilitadosFn ? deshabilitadosFn() : [];
+    const norm = (filtro || '').trim().toLowerCase();
+    const filtradas = norm
+      ? opcionesActuales.filter(o => o.label.toLowerCase().includes(norm))
+      : opcionesActuales;
+
+    if (filtradas.length === 0) {
+      const msg = document.createElement('div');
+      msg.className   = 'ds-vacio';
+      msg.textContent = opcionesActuales.length === 0 ? mensajeVacio : 'Sin resultados para "' + filtro + '"';
+      listaItems.appendChild(msg);
+      return;
+    }
+
+    filtradas.forEach(opcion => {
+      const disabled = deshabilitados.includes(opcion.value);
+      const item = document.createElement('div');
+      item.className = 'ds-item'
+        + (opcion.value === valorSeleccionado ? ' ds-item-activo' : '')
+        + (disabled ? ' ds-item-disabled' : '');
+      item.textContent = opcion.label;
+      if (disabled) {
+        item.title = 'Ya seleccionado en otra fila';
+      } else {
+        item.addEventListener('mousedown', e => {
+          e.preventDefault();
+          valorSeleccionado  = opcion.value;
+          labelSeleccionado  = opcion.labelCorto || opcion.label;
+          opcionSeleccionada = opcion;
+          trigger.textContent = labelSeleccionado;
+          trigger.classList.add('ds-trigger-seleccionado');
+          trigger.classList.remove('error');
+          cerrar();
+          onChange(opcion.value, opcion.label, opcion);
+        });
+      }
+      listaItems.appendChild(item);
+    });
+  }
+
+  function posicionar() {
+    const rect = trigger.getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.top      = (rect.bottom + 4) + 'px';
+    panel.style.left     = rect.left + 'px';
+    panel.style.width    = Math.max(rect.width, 260) + 'px';
+    panel.style.zIndex   = '9999';
+  }
+
+  function abrir() {
+    if (deshabilitado) return;
+    inputBusqueda.value = '';
+    renderItems('');
+    posicionar();
+    panel.style.display = 'block';
+    inputBusqueda.focus();
+  }
+
+  function cerrar() { panel.style.display = 'none'; }
+
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    panel.style.display === 'none' ? abrir() : cerrar();
+  });
+
+  inputBusqueda.addEventListener('input', () => renderItems(inputBusqueda.value));
+
+  document.addEventListener('click', e => {
+    if (!contenedor.contains(e.target) && !panel.contains(e.target)) cerrar();
+  });
+
+  window.addEventListener('scroll', () => {
+    if (panel.style.display !== 'none') posicionar();
+  }, true);
+
+  return {
+    contenedor,
+    wrap:     contenedor,     // alias para compatibilidad con código existente
+    input:    trigger,        // alias para toggleError en validación
+    getValue:  () => valorSeleccionado,
+    getLabel:  () => labelSeleccionado,
+    getExtra:  () => opcionSeleccionada ? (opcionSeleccionada.extra || {}) : {},
+    setOpciones(nuevasOpciones) {
+      opcionesActuales = nuevasOpciones.slice();
+      if (panel.style.display !== 'none') renderItems(inputBusqueda.value);
+    },
+    removerOpcion(value) {
+      opcionesActuales = opcionesActuales.filter(o => o.value !== value);
+    },
+    agregarOpcion(opcion) {
+      if (!opcionesActuales.find(o => o.value === opcion.value)) {
+        opcionesActuales.push(opcion);
+        opcionesActuales.sort((a, b) => a.label.localeCompare(b.label));
+      }
+    },
+    reset() {
+      valorSeleccionado  = '';
+      labelSeleccionado  = '';
+      opcionSeleccionada = null;
+      trigger.textContent = placeholder;
+      trigger.classList.remove('ds-trigger-seleccionado', 'error');
+      cerrar();
+    },
+    disable() { deshabilitado = true;  trigger.classList.add('ds-trigger-disabled'); },
+    enable()  { deshabilitado = false; trigger.classList.remove('ds-trigger-disabled'); }
+  };
 }
 
 // ── Conductores sin duplicar (Mejora 16) ──
@@ -541,7 +702,8 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
 
 function onProveedorChange(idx, prov) {
   actualizarEtiquetasIngreso(idx, prov);
-  if (filaRefs[idx]) filaRefs[idx].rutaFiltro = prov;
+  const refs = filaRefs[idx];
+  if (refs && refs.ruta) refs.ruta.setOpciones(getRutasOpciones(prov));
 }
 
 // ── Multi-select (Mejora 15 — reescritura completa) ──
@@ -923,8 +1085,15 @@ async function syncViajesDatos(accion, badgeId, btnId) {
   }
 }
 
-// Mejora 19: refrescar etiquetas preservando selección
+// Mejora 19: refrescar opciones de dropdowns y etiquetas preservando selección
 function refrescarFilasExistentes() {
+  const tripOpciones = (window.DATOS.tripulantes || []).map(t => ({
+    value: t.nombre_completo,
+    labelCorto: t.nombre_completo,
+    label: t.nombre_completo + ' — ' + t.email,
+    extra: { nombre: t.nombre_completo, email: t.email }
+  }));
+
   document.querySelectorAll('#tripsTbody tr').forEach(tr => {
     const idx  = Number(tr.dataset.idx);
     const refs = filaRefs[idx];
@@ -935,7 +1104,34 @@ function refrescarFilasExistentes() {
     const prevCosto   = msC ? JSON.parse(msC.dataset.selected || '[]') : [];
     const prevIngreso = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
 
-    const vCode = refs.veh?.getValue();
+    if (refs.dir) refs.dir.setOpciones((window.DATOS.direcciones || []).map(d => ({
+      value: d.code, labelCorto: d.code,
+      label: '[' + d.code + '] — ' + (d.name || '') + ' | ' + (d.address1 || '') + ', ' + (d.city || '')
+    })));
+
+    if (refs.veh) refs.veh.setOpciones((window.DATOS.flota || [])
+      .filter(v => v.is_active === true || String(v.is_active).toLowerCase() === 'true')
+      .map(v => ({
+        value: v.code, labelCorto: v.code,
+        label: v.code + (v.description ? ' — ' + v.description : '') + ' | ' + (v.employer_name || 'Sin empleador')
+      })));
+
+    if (refs.arr) refs.arr.setOpciones((window.DATOS.arrastres || []).map(a => {
+      const vals = Object.values(a);
+      const v = String(vals[0] || '');
+      return { value: v, label: v + (vals[1] ? ' — ' + vals[1] : '') };
+    }));
+
+    if (refs.prov) refs.prov.setOpciones((window.DATOS.socios || [])
+      .filter(s => String(s.type || '').toLowerCase() === 'supplier')
+      .map(s => ({ value: s.name || '', label: s.name || '' })));
+
+    if (refs.ruta) refs.ruta.setOpciones(getRutasOpciones(refs.prov ? refs.prov.getValue() : ''));
+
+    if (refs.cond)  refs.cond.setOpciones(tripOpciones);
+    if (refs.cond2) refs.cond2.setOpciones(tripOpciones);
+
+    const vCode   = refs.veh?.getValue();
     const pNombre = refs.prov?.getValue();
 
     if (vCode) {

@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (isAdmin)     document.getElementById('navActualizar').style.display = 'flex';
   if (isSuperAdmin) document.getElementById('navAdmin').style.display     = 'flex';
+  if (isAdmin)     document.getElementById('navRutas').style.display      = 'flex';
+  if (isAdmin)     document.getElementById('navArrastres').style.display  = 'flex';
   if (!isAdmin)    document.getElementById('secActualizar').style.display = 'none';
 
   document.getElementById('changePasswordForm').addEventListener('submit', handleChangePassword);
