@@ -19,6 +19,77 @@ const filaRefs = {};
 const PROVEEDOR_MELI_FIJO = 'TECH PACK SRL';
 const UNIDADES_MELI_FIJAS = '25000';
 
+// ── Caché localStorage ──
+
+const CACHE_KEY    = 'troncales_datosMaestros';
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+function cargarDesdeCacheOGAS() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { timestamp, data } = JSON.parse(raw);
+    if (Date.now() - timestamp < CACHE_TTL_MS) return { fromCache: true, data };
+  } catch(e) {}
+  return null;
+}
+
+function guardarEnCache(data) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
+  } catch(e) {}
+}
+
+// ── Loader con feedback ──
+
+let loaderInterval = null;
+let loaderSeconds  = 0;
+
+function iniciarLoaderConFeedback() {
+  const loaderTxt    = document.getElementById('initLoaderTxt');
+  const loaderSubtxt = document.getElementById('initLoaderSubtxt');
+  loaderSeconds = 0;
+  loaderInterval = setInterval(() => {
+    loaderSeconds++;
+    if (loaderTxt) loaderTxt.textContent = 'Cargando datos maestros... (' + loaderSeconds + 's)';
+    if (loaderSeconds === 8 && loaderSubtxt)
+      loaderSubtxt.textContent = 'Esto puede demorar unos segundos en el primer acceso del día.';
+    if (loaderSeconds === 20 && loaderSubtxt)
+      loaderSubtxt.textContent = 'Conectando con Google Apps Script, por favor esperá...';
+    if (loaderSeconds === 40) {
+      clearInterval(loaderInterval);
+      loaderInterval = null;
+      if (loaderSubtxt) loaderSubtxt.innerHTML = 'La conexión está tardando más de lo esperado. <button onclick="location.reload()" style="color:#01feff;background:none;border:1px solid #01feff;padding:4px 12px;border-radius:4px;cursor:pointer;margin-left:8px;">Reintentar</button>';
+    }
+  }, 1000);
+}
+
+function detenerLoader() {
+  if (loaderInterval) { clearInterval(loaderInterval); loaderInterval = null; }
+}
+
+async function getDatosMaestrosConTimeout() {
+  return Promise.race([
+    gasCall('getDatosMaestros'),
+    new Promise((_, reject) => setTimeout(() =>
+      reject(new Error('Timeout: el servidor tardó demasiado. Recargá la página para reintentar.')), 45000))
+  ]);
+}
+
+async function refrescarDatosSilencioso() {
+  try {
+    const res = await gasCall('getDatosMaestros');
+    if (res.ok !== false) {
+      guardarEnCache(res);
+      if (!Object.keys(filaRefs).length) {
+        window.DATOS = res;
+      } else {
+        mostrarToast('Datos maestros actualizados. Serán aplicados en la próxima carga.');
+      }
+    }
+  } catch(e) {}
+}
+
 // ── INIT ──
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -26,19 +97,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!SESSION) return;
   document.getElementById('userName').textContent     = SESSION.nombre_completo;
   document.getElementById('userRolBadge').textContent = SESSION.rol;
-  document.getElementById('initLoader').style.display = 'flex';
-  document.getElementById('contenido').style.display  = 'none';
-  try {
-    const res = await gasCall('getDatosMaestros');
-    if (res.ok === false) throw new Error(res.error || 'Error al cargar datos maestros');
-    window.DATOS = res;
+
+  const cached = cargarDesdeCacheOGAS();
+
+  if (cached) {
+    window.DATOS = cached.data;
+    console.log('Datos maestros desde localStorage (caché)');
     document.getElementById('initLoader').style.display = 'none';
     document.getElementById('contenido').style.display  = 'block';
     inicializarPaso1();
-  } catch (e) {
-    document.getElementById('initLoader').style.display = 'none';
-    document.getElementById('initError').textContent    = 'Error al cargar datos: ' + e.message;
-    document.getElementById('initError').style.display  = 'block';
+    refrescarDatosSilencioso();
+  } else {
+    document.getElementById('initLoader').style.display = 'flex';
+    document.getElementById('contenido').style.display  = 'none';
+    iniciarLoaderConFeedback();
+    try {
+      const res = await getDatosMaestrosConTimeout();
+      detenerLoader();
+      if (res.ok === false) throw new Error(res.error || 'Error al cargar datos maestros');
+      window.DATOS = res;
+      guardarEnCache(res);
+      document.getElementById('initLoader').style.display = 'none';
+      document.getElementById('contenido').style.display  = 'block';
+      inicializarPaso1();
+    } catch (e) {
+      detenerLoader();
+      document.getElementById('initLoader').style.display = 'none';
+      document.getElementById('initError').textContent    = 'Error al cargar datos: ' + e.message;
+      document.getElementById('initError').style.display  = 'block';
+    }
   }
 });
 
@@ -968,9 +1055,11 @@ async function syncViajesDatos(accion, badgeId, btnId) {
     const res = await gasCall(accion);
     if (res.ok) {
       if (badge) badge.textContent = '✓ ' + (res.count || '');
+      localStorage.removeItem(CACHE_KEY);
       const nuevosDatos = await gasCall('getDatosMaestros');
       if (nuevosDatos.ok !== false) {
         window.DATOS = nuevosDatos;
+        guardarEnCache(nuevosDatos);
         refrescarFilasExistentes();
         mostrarToast('Datos actualizados — los desplegables ahora tienen información nueva');
       }
