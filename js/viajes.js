@@ -4,6 +4,7 @@ let SESSION    = null;
 let planCreado = null;
 let codigoDespacho = '';
 const filaRefs = {}; // { idx: { dir, veh, arr, prov, ruta, cond, cond2, rutaFiltro } }
+const msRefs   = {}; // { 'ms-costo-1': multiSelectRef, 'ms-ingreso-1': multiSelectRef }
 
 document.addEventListener('DOMContentLoaded', async () => {
   SESSION = requireSession();
@@ -387,7 +388,18 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados para este empleador</span>';
     return;
   }
-  td.appendChild(crearMultiSelect(idx, 'costo', items));
+  const msId = `ms-costo-${idx}`;
+  let ms;
+  ms = crearMultiSelect({
+    opciones:     items.map(i => i.etiqueta),
+    placeholder:  'Etiquetas costo...',
+    mensajeVacio: 'Sin costos cargados para este empleador',
+    onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
+  });
+  ms.contenedor.id             = msId;
+  ms.contenedor.dataset.selected = '[]';
+  msRefs[msId] = ms;
+  td.appendChild(ms.contenedor);
 }
 
 // ── Etiquetas Ingreso — proveedor → col L(11) → col AA(26) (Mejora 7) ──
@@ -409,7 +421,18 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin tarifas cargadas para este proveedor</span>';
     return;
   }
-  td.appendChild(crearMultiSelect(idx, 'ingreso', items));
+  const msId = `ms-ingreso-${idx}`;
+  let ms;
+  ms = crearMultiSelect({
+    opciones:     items.map(i => i.etiqueta),
+    placeholder:  'Etiquetas ingreso...',
+    mensajeVacio: 'Sin tarifas cargadas para este proveedor',
+    onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
+  });
+  ms.contenedor.id             = msId;
+  ms.contenedor.dataset.selected = '[]';
+  msRefs[msId] = ms;
+  td.appendChild(ms.contenedor);
 }
 
 // ── Proveedor change → ingreso + rutas (Mejoras 7+8) ──
@@ -419,119 +442,146 @@ function onProveedorChange(idx, prov) {
   if (filaRefs[idx]) filaRefs[idx].rutaFiltro = prov;
 }
 
-// ── Multi-select con vigencia (Mejora 15) ──
+// ── Multi-select (Mejora 15 — reescritura completa) ──
 
-function crearMultiSelect(idx, tipo, items) {
-  const wrap = document.createElement('div');
-  wrap.className        = 'multi-select-wrap';
-  wrap.id               = `ms-${tipo}-${idx}`;
-  wrap.dataset.selected = '[]';
+function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensajeVacio = 'Sin opciones disponibles', onChange = () => {} }) {
 
-  const pills = document.createElement('div');
-  pills.className = 'multi-pills';
+  let seleccionadas    = [];
+  let opcionesActuales = [...opciones];
 
-  const ph = document.createElement('span');
-  ph.className   = 'pills-placeholder';
-  ph.textContent = 'Seleccionar...';
-  pills.appendChild(ph);
+  const contenedor = document.createElement('div');
+  contenedor.className = 'ms-contenedor';
 
-  const dropdown = document.createElement('div');
-  dropdown.className = 'multi-dropdown';
+  const pillsDiv = document.createElement('div');
+  pillsDiv.className = 'ms-pills';
+  contenedor.appendChild(pillsDiv);
 
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'multi-search-wrap';
-  const searchInput = document.createElement('input');
-  searchInput.type        = 'text';
-  searchInput.placeholder = 'Buscar...';
-  searchInput.className   = 'multi-search';
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
-    dropdown.querySelectorAll('label.multi-option').forEach(lbl => {
-      lbl.style.display = q ? (lbl.textContent.trim().toLowerCase().includes(q) ? '' : 'none') : '';
+  const trigger = document.createElement('div');
+  trigger.className   = 'ms-trigger';
+  trigger.textContent = placeholder;
+  contenedor.appendChild(trigger);
+
+  // Panel va al body para evitar clipping por overflow de la tabla
+  const panel = document.createElement('div');
+  panel.className      = 'ms-panel';
+  panel.style.display  = 'none';
+  document.body.appendChild(panel);
+
+  function renderPills() {
+    pillsDiv.innerHTML = '';
+    seleccionadas.forEach(val => {
+      const pill  = document.createElement('span');
+      pill.className = 'ms-pill';
+      const texto = document.createElement('span');
+      texto.textContent = val;
+      const x = document.createElement('span');
+      x.className   = 'ms-pill-x';
+      x.textContent = '×';
+      x.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        seleccionadas = seleccionadas.filter(s => s !== val);
+        renderPills();
+        renderPanel();
+        onChange([...seleccionadas]);
+      });
+      pill.appendChild(texto);
+      pill.appendChild(x);
+      pillsDiv.appendChild(pill);
     });
-  });
-  searchInput.addEventListener('mousedown', e => e.stopPropagation());
-  searchInput.addEventListener('keydown',   e => { if (e.key === 'Escape') dropdown.classList.remove('open'); });
-  searchWrap.appendChild(searchInput);
-  dropdown.appendChild(searchWrap);
-  dropdown.addEventListener('mousedown', e => e.stopPropagation());
-  dropdown.addEventListener('click',     e => e.stopPropagation());
+    trigger.textContent = seleccionadas.length === 0 ? placeholder : seleccionadas.length + ' seleccionada(s)';
+  }
 
-  items.forEach(item => {
-    const vigente  = estaVigente(item.vigenciaDesde, item.vigenciaHasta);
-    const color    = vigente ? '#ffffff' : '#e84040';
-
-    const lbl = document.createElement('label');
-    lbl.className  = 'multi-option';
-    lbl.style.cssText = 'display:block;padding:6px 10px;cursor:pointer;font-size:12px;line-height:20px;color:' + color + ';';
-    if (!vigente) lbl.title = 'Fuera de período de vigencia';
-
-    const cb  = document.createElement('input');
-    cb.type   = 'checkbox';
-    cb.value  = item.etiqueta;
-    cb.style.cssText = 'vertical-align:middle;margin-right:6px;cursor:pointer;accent-color:#01feff;';
-    cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph, items));
-
-    const txt = document.createElement('span');
-    txt.style.cssText = 'vertical-align:middle;color:' + color + ';';
-    txt.textContent   = item.etiqueta;
-
-    lbl.appendChild(cb);
-    lbl.appendChild(txt);
-    dropdown.appendChild(lbl);
-  });
-
-  pills.addEventListener('click', e => {
-    if (e.target.classList.contains('pill-remove')) return;
-    if (dropdown.classList.contains('open')) {
-      dropdown.classList.remove('open');
-    } else {
-      const rect = pills.getBoundingClientRect();
-      dropdown.style.top   = (rect.bottom + 2) + 'px';
-      dropdown.style.left  = rect.left + 'px';
-      dropdown.style.width = Math.max(rect.width, 320) + 'px';
-      dropdown.classList.add('open');
-      searchInput.value = '';
-      dropdown.querySelectorAll('label.multi-option').forEach(lbl => lbl.style.display = '');
-      setTimeout(() => searchInput.focus(), 10);
+  function renderPanel() {
+    panel.innerHTML = '';
+    if (opcionesActuales.length === 0) {
+      const msg = document.createElement('div');
+      msg.className   = 'ms-vacio';
+      msg.textContent = mensajeVacio;
+      panel.appendChild(msg);
+      return;
     }
-  });
-  document.addEventListener('click', e => {
-    if (!wrap.contains(e.target)) dropdown.classList.remove('open');
-  });
-
-  wrap.appendChild(pills);
-  wrap.appendChild(dropdown);
-  return wrap;
-}
-
-function actualizarMultiSelect(wrap, pills, ph, items) {
-  const selected = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
-  wrap.dataset.selected = JSON.stringify(selected);
-  renderPills(pills, ph, selected, wrap, items);
-}
-
-function renderPills(pills, ph, selected, wrap, items) {
-  pills.innerHTML = '';
-  if (!selected.length) { pills.appendChild(ph); return; }
-  selected.forEach(val => {
-    const item    = items ? items.find(i => i.etiqueta === val) : null;
-    const vigente = item ? estaVigente(item.vigenciaDesde, item.vigenciaHasta) : true;
-    const pill    = document.createElement('span');
-    pill.className = 'pill' + (vigente ? '' : ' pill-fuera-vigencia');
-    if (!vigente) pill.title = 'Fuera de período de vigencia';
-    const rm = document.createElement('span');
-    rm.className   = 'pill-remove';
-    rm.textContent = '×';
-    rm.addEventListener('click', e => {
-      e.stopPropagation();
-      wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => { if (cb.value === val) cb.checked = false; });
-      actualizarMultiSelect(wrap, pills, ph, items);
+    opcionesActuales.forEach(opcion => {
+      const item     = document.createElement('label');
+      item.className = 'ms-item';
+      const checkbox = document.createElement('input');
+      checkbox.type      = 'checkbox';
+      checkbox.className = 'ms-checkbox';
+      checkbox.value     = opcion;
+      checkbox.checked   = seleccionadas.includes(opcion);
+      checkbox.addEventListener('change', function() {
+        if (checkbox.checked) {
+          if (!seleccionadas.includes(opcion)) seleccionadas.push(opcion);
+        } else {
+          seleccionadas = seleccionadas.filter(s => s !== opcion);
+        }
+        renderPills();
+        onChange([...seleccionadas]);
+      });
+      const labelTexto     = document.createElement('span');
+      labelTexto.className = 'ms-item-texto';
+      labelTexto.textContent = opcion;
+      item.appendChild(checkbox);
+      item.appendChild(labelTexto);
+      panel.appendChild(item);
     });
-    pill.appendChild(document.createTextNode(val));
-    pill.appendChild(rm);
-    pills.appendChild(pill);
+  }
+
+  function posicionar() {
+    const rect         = trigger.getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.top      = (rect.bottom + 4) + 'px';
+    panel.style.left     = rect.left + 'px';
+    panel.style.width    = Math.max(rect.width, 260) + 'px';
+    panel.style.zIndex   = '9999';
+  }
+
+  function abrir() {
+    renderPanel();
+    posicionar();
+    panel.style.display = 'block';
+  }
+
+  function cerrar() {
+    panel.style.display = 'none';
+  }
+
+  trigger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (panel.style.display === 'none') { abrir(); } else { cerrar(); }
   });
+
+  document.addEventListener('click', function(e) {
+    if (!contenedor.contains(e.target) && !panel.contains(e.target)) cerrar();
+  });
+
+  window.addEventListener('scroll', function() {
+    if (panel.style.display !== 'none') posicionar();
+  }, true);
+
+  renderPills();
+
+  return {
+    contenedor,
+    getValores:   () => [...seleccionadas],
+    setOpciones:  function(nuevasOpciones) {
+      opcionesActuales = [...nuevasOpciones];
+      seleccionadas    = seleccionadas.filter(s => opcionesActuales.includes(s));
+      renderPills();
+      if (panel.style.display !== 'none') renderPanel();
+    },
+    setSeleccion: function(vals) {
+      seleccionadas = vals.filter(v => opcionesActuales.includes(v));
+      renderPills();
+      onChange([...seleccionadas]);
+    },
+    reset: function() {
+      seleccionadas    = [];
+      opcionesActuales = [];
+      renderPills();
+      cerrar();
+    }
+  };
 }
 
 // ── Validación (Mejoras 5+18) ──
@@ -556,13 +606,13 @@ function validarFilas() {
 
     const msC = document.getElementById(`ms-costo-${idx}`);
     const costoSel = msC ? JSON.parse(msC.dataset.selected || '[]') : [];
-    const pillsC = msC?.querySelector('.multi-pills');
-    if (pillsC) { pillsC.classList.toggle('error', !costoSel.length); if (!costoSel.length) ok = false; }
+    const triggerC = msC?.querySelector('.ms-trigger');
+    if (triggerC) { triggerC.classList.toggle('error', !costoSel.length); if (!costoSel.length) ok = false; }
 
     const msI = document.getElementById(`ms-ingreso-${idx}`);
     const ingresoSel = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
-    const pillsI = msI?.querySelector('.multi-pills');
-    if (pillsI) { pillsI.classList.toggle('error', !ingresoSel.length); if (!ingresoSel.length) ok = false; }
+    const triggerI = msI?.querySelector('.ms-trigger');
+    if (triggerI) { triggerI.classList.toggle('error', !ingresoSel.length); if (!ingresoSel.length) ok = false; }
   });
   return ok;
 }
@@ -786,25 +836,9 @@ function refrescarFilasExistentes() {
 }
 
 function _restaurarMultiSelect(msId, prevSelected) {
-  const ms = document.getElementById(msId);
-  if (!ms || !prevSelected.length) return;
-  ms.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    if (prevSelected.includes(cb.value)) cb.checked = true;
-  });
-  const pills = ms.querySelector('.multi-pills');
-  const ph    = ms.querySelector('.pills-placeholder');
-  const stillValid = prevSelected.filter(v =>
-    Array.from(ms.querySelectorAll('input[type="checkbox"]')).some(cb => cb.value === v)
-  );
-  ms.dataset.selected = JSON.stringify(stillValid);
-  if (pills && ph) {
-    // Rebuild pills with current item metadata
-    const items = Array.from(ms.querySelectorAll('label.multi-option')).map(lbl => {
-      const cb = lbl.querySelector('input');
-      return { etiqueta: cb?.value || '', vigenciaDesde: '', vigenciaHasta: '' };
-    });
-    renderPills(pills, ph, stillValid, ms, items);
-  }
+  if (!prevSelected.length) return;
+  const ms = msRefs[msId];
+  if (ms) ms.setSeleccion(prevSelected);
 }
 
 // ── Toast ──
