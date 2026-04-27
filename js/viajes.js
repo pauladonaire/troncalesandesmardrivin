@@ -775,12 +775,14 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       const vigente  = getVigente(opcion);
       const item     = document.createElement('label');
       item.className = 'ms-item';
+      item.style.cssText = 'display:flex;flex-direction:row;align-items:flex-start;gap:10px;cursor:pointer;width:100%;box-sizing:border-box;';
       if (!vigente) item.title = 'Fuera de período de vigencia';
       const checkbox = document.createElement('input');
       checkbox.type      = 'checkbox';
       checkbox.className = 'ms-checkbox' + (vigente ? '' : ' ms-checkbox--vencido');
       checkbox.value     = etiqueta;
       checkbox.checked   = seleccionadas.includes(etiqueta);
+      checkbox.style.cssText = 'width:16px;height:16px;min-width:16px;flex-shrink:0;margin:0;margin-top:2px;cursor:pointer;';
       checkbox.addEventListener('change', function() {
         if (checkbox.checked) {
           if (!seleccionadas.includes(etiqueta)) seleccionadas.push(etiqueta);
@@ -793,6 +795,7 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       const labelTexto     = document.createElement('span');
       labelTexto.className = 'ms-item-texto' + (vigente ? '' : ' ms-item-texto--vencida');
       labelTexto.textContent = etiqueta;
+      labelTexto.style.cssText = 'flex:1;word-break:break-word;white-space:normal;line-height:1.4;';
       item.appendChild(checkbox);
       item.appendChild(labelTexto);
       panel.appendChild(item);

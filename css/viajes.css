@@ -295,34 +295,38 @@
 }
 
 .ms-item {
-  display: flex;
-  align-items: flex-start;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
   gap: 10px;
   padding: 10px 14px;
   cursor: pointer;
   border-bottom: 1px solid var(--color-border);
   transition: background 0.15s;
+  width: 100%;
+  box-sizing: border-box;
 }
 .ms-item:last-child { border-bottom: none; }
 .ms-item:hover { background: var(--color-dark-blue); }
 
 .ms-checkbox {
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
-  margin: 0;
-  margin-top: 1px;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  margin-top: 2px !important;
   cursor: pointer;
   accent-color: var(--color-primary);
 }
 
 .ms-item-texto {
+  flex: 1 !important;
   color: var(--color-white);
   font-size: 13px;
   line-height: 1.4;
   white-space: normal;
   word-break: break-word;
-  flex: 1;
 }
 
 .ms-vacio {
