@@ -240,7 +240,7 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       if (!vigente) item.title = 'Fuera de período de vigencia';
       const checkbox = document.createElement('input');
       checkbox.type      = 'checkbox';
-      checkbox.className = 'ms-checkbox' + (vigente ? '' : ' ms-checkbox--vencido');
+      checkbox.className = 'ms-checkbox';
       checkbox.value     = etiqueta;
       checkbox.checked   = seleccionadas.includes(etiqueta);
       checkbox.style.cssText = 'width:16px;height:16px;min-width:16px;flex-shrink:0;margin:0;margin-top:2px;cursor:pointer;';

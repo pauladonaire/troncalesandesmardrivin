@@ -801,7 +801,7 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       if (!vigente) item.title = 'Fuera de período de vigencia';
       const checkbox = document.createElement('input');
       checkbox.type      = 'checkbox';
-      checkbox.className = 'ms-checkbox' + (vigente ? '' : ' ms-checkbox--vencido');
+      checkbox.className = 'ms-checkbox';
       checkbox.value     = etiqueta;
       checkbox.checked   = seleccionadas.includes(etiqueta);
       checkbox.style.cssText = 'width:16px;height:16px;min-width:16px;flex-shrink:0;margin:0;margin-top:2px;cursor:pointer;';
@@ -956,7 +956,13 @@ function recolectarViajes() {
 // ── Cargar viajes ──
 
 function cargarViajes() {
-  validarFilas();
+  if (!validarFilas()) {
+    const errEl = document.getElementById('validacionError');
+    errEl.textContent = 'Completá los campos obligatorios marcados en rojo (*).';
+    errEl.style.display = 'block';
+    document.querySelector('#tripsTbody .error')?.closest('tr')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   document.getElementById('validacionError').style.display = 'none';
   const viajes = recolectarViajes();
   document.getElementById('resNViajes').textContent    = viajes.length;
