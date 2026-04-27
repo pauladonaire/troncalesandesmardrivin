@@ -391,7 +391,7 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
   const msId = `ms-costo-${idx}`;
   let ms;
   ms = crearMultiSelect({
-    opciones:     items.map(i => i.etiqueta),
+    opciones:     items,
     placeholder:  'Etiquetas costo...',
     mensajeVacio: 'Sin costos cargados para este empleador',
     onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
@@ -424,7 +424,7 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
   const msId = `ms-ingreso-${idx}`;
   let ms;
   ms = crearMultiSelect({
-    opciones:     items.map(i => i.etiqueta),
+    opciones:     items,
     placeholder:  'Etiquetas ingreso...',
     mensajeVacio: 'Sin tarifas cargadas para este proveedor',
     onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
@@ -445,6 +445,10 @@ function onProveedorChange(idx, prov) {
 // ── Multi-select (Mejora 15 — reescritura completa) ──
 
 function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensajeVacio = 'Sin opciones disponibles', onChange = () => {} }) {
+
+  // Cada opción puede ser string o { etiqueta, vigenciaDesde, vigenciaHasta }
+  function getEtiqueta(op) { return typeof op === 'object' ? op.etiqueta : op; }
+  function getVigente(op)  { return typeof op !== 'object' || estaVigente(op.vigenciaDesde, op.vigenciaHasta); }
 
   let seleccionadas    = [];
   let opcionesActuales = [...opciones];
@@ -470,8 +474,11 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
   function renderPills() {
     pillsDiv.innerHTML = '';
     seleccionadas.forEach(val => {
+      const opcion  = opcionesActuales.find(o => getEtiqueta(o) === val);
+      const vigente = opcion ? getVigente(opcion) : true;
       const pill  = document.createElement('span');
-      pill.className = 'ms-pill';
+      pill.className = 'ms-pill' + (vigente ? '' : ' ms-pill--vencida');
+      if (!vigente) pill.title = 'Fuera de período de vigencia';
       const texto = document.createElement('span');
       texto.textContent = val;
       const x = document.createElement('span');
@@ -502,25 +509,28 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       return;
     }
     opcionesActuales.forEach(opcion => {
+      const etiqueta = getEtiqueta(opcion);
+      const vigente  = getVigente(opcion);
       const item     = document.createElement('label');
       item.className = 'ms-item';
+      if (!vigente) item.title = 'Fuera de período de vigencia';
       const checkbox = document.createElement('input');
       checkbox.type      = 'checkbox';
-      checkbox.className = 'ms-checkbox';
-      checkbox.value     = opcion;
-      checkbox.checked   = seleccionadas.includes(opcion);
+      checkbox.className = 'ms-checkbox' + (vigente ? '' : ' ms-checkbox--vencido');
+      checkbox.value     = etiqueta;
+      checkbox.checked   = seleccionadas.includes(etiqueta);
       checkbox.addEventListener('change', function() {
         if (checkbox.checked) {
-          if (!seleccionadas.includes(opcion)) seleccionadas.push(opcion);
+          if (!seleccionadas.includes(etiqueta)) seleccionadas.push(etiqueta);
         } else {
-          seleccionadas = seleccionadas.filter(s => s !== opcion);
+          seleccionadas = seleccionadas.filter(s => s !== etiqueta);
         }
         renderPills();
         onChange([...seleccionadas]);
       });
       const labelTexto     = document.createElement('span');
-      labelTexto.className = 'ms-item-texto';
-      labelTexto.textContent = opcion;
+      labelTexto.className = 'ms-item-texto' + (vigente ? '' : ' ms-item-texto--vencida');
+      labelTexto.textContent = etiqueta;
       item.appendChild(checkbox);
       item.appendChild(labelTexto);
       panel.appendChild(item);
@@ -566,12 +576,12 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
     getValores:   () => [...seleccionadas],
     setOpciones:  function(nuevasOpciones) {
       opcionesActuales = [...nuevasOpciones];
-      seleccionadas    = seleccionadas.filter(s => opcionesActuales.includes(s));
+      seleccionadas    = seleccionadas.filter(s => opcionesActuales.some(o => getEtiqueta(o) === s));
       renderPills();
       if (panel.style.display !== 'none') renderPanel();
     },
     setSeleccion: function(vals) {
-      seleccionadas = vals.filter(v => opcionesActuales.includes(v));
+      seleccionadas = vals.filter(v => opcionesActuales.some(o => getEtiqueta(o) === v));
       renderPills();
       onChange([...seleccionadas]);
     },
