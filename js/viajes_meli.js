@@ -4,6 +4,7 @@ let SESSION    = null;
 let planCreado = null;
 let codigoDespacho = '';
 const filaRefs = {};
+const msRefs   = {};
 
 // ── COLUMNAS ESPERADAS EN EL EXCEL MELI ──
 // Travel ID        → Código Alternativo
@@ -185,7 +186,7 @@ function procesarExcelMeli(file) {
 function _normHeader(s) {
   return String(s)
     .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -335,6 +336,18 @@ function _buscarConductor(raw) {
   ) || null;
 }
 
+function getRutasOpciones(filtroProveedor) {
+  const all = (window.DATOS.rutas || []).map(r => {
+    const vals   = Object.values(r);
+    const nombre = String(vals[0] || '');
+    const prov   = String(vals[1] || '');
+    return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov };
+  });
+  if (!filtroProveedor) return all;
+  const norm = filtroProveedor.toLowerCase();
+  return all.filter(r => r.rutaProv.toLowerCase() === norm || r.rutaProv === '');
+}
+
 // ── Crear fila desde datos Meli ──
 
 function crearFilaMeli(idx, datos) {
@@ -360,24 +373,32 @@ function crearFilaMeli(idx, datos) {
     <td class="col-descripcion"><input type="text" class="f-desc" value="${escapeHtml(datos.servicio)}" placeholder="Opcional"></td>
   `;
 
-  const refs = { rutaFiltro: '' };
+  const refs = {};
 
-  refs.dir = crearDropdownBuscable({
-    inputClass:  'f-dir',
-    placeholder: 'Buscar dirección... *',
-    opcionesFn:  () => (window.DATOS.direcciones || []).map(d => ({
+  const tripOpciones = (window.DATOS.tripulantes || []).map(t => ({
+    value: t.nombre_completo,
+    labelCorto: t.nombre_completo,
+    label: t.nombre_completo + ' — ' + t.email,
+    extra: { nombre: t.nombre_completo, email: t.email }
+  }));
+
+  refs.dir = crearDropdownSimple({
+    opciones: (window.DATOS.direcciones || []).map(d => ({
       value: d.code, labelCorto: d.code,
-      label: `[${d.code}] — ${d.name} | ${d.address1}, ${d.city}`
-    }))
+      label: '[' + d.code + '] — ' + (d.name || '') + ' | ' + (d.address1 || '') + ', ' + (d.city || '')
+    })),
+    placeholder:  'Buscar dirección... *',
+    mensajeVacio: 'No hay direcciones cargadas',
+    onChange: () => {}
   });
 
-  refs.veh = crearDropdownBuscable({
-    inputClass:  'f-vehiculo',
-    placeholder: 'Buscar vehículo... *',
-    opcionesFn:  () => (window.DATOS.flota || []).map(v => ({
-      value: v.code,
-      label: `${v.code}${v.description ? ' — ' + v.description : ''} | ${v.employer_name || 'Sin empleador'}`
+  refs.veh = crearDropdownSimple({
+    opciones: (window.DATOS.flota || []).map(v => ({
+      value: v.code, labelCorto: v.code,
+      label: v.code + (v.description ? ' — ' + v.description : '') + ' | ' + (v.employer_name || 'Sin empleador')
     })),
+    placeholder:      'Buscar vehículo... *',
+    mensajeVacio:     'No hay vehículos disponibles',
     deshabilitadosFn: () => Object.keys(filaRefs)
       .filter(k => Number(k) !== idx)
       .map(k => filaRefs[k]?.veh?.getValue())
@@ -385,62 +406,47 @@ function crearFilaMeli(idx, datos) {
     onChange: (value) => onVehiculoChange(idx, value)
   });
 
-  refs.arr = crearDropdownBuscable({
-    inputClass:  'f-arrastre',
-    placeholder: '— arrastre —',
-    opcionesFn:  () => (window.DATOS.arrastres || []).map(a => {
+  refs.arr = crearDropdownSimple({
+    opciones: (window.DATOS.arrastres || []).map(a => {
       const vals = Object.values(a);
       const v = String(vals[0] || '');
       return { value: v, label: v + (vals[1] ? ' — ' + vals[1] : '') };
-    })
+    }),
+    placeholder:  '— arrastre —',
+    mensajeVacio: 'No hay arrastres cargados',
+    onChange: () => {}
   });
 
-  refs.prov = crearDropdownBuscable({
-    inputClass:  'f-proveedor',
-    placeholder: 'Buscar proveedor... *',
-    opcionesFn:  () => (window.DATOS.socios || [])
+  refs.prov = crearDropdownSimple({
+    opciones: (window.DATOS.socios || [])
       .filter(s => String(s.type || '').toLowerCase() === 'supplier')
       .map(s => ({ value: s.name || '', label: s.name || '' })),
+    placeholder:  'Buscar proveedor... *',
+    mensajeVacio: 'No hay proveedores disponibles',
     onChange: (value) => onProveedorChange(idx, value)
   });
 
-  refs.ruta = crearDropdownBuscable({
-    inputClass:  'f-ruta',
-    placeholder: 'Buscar ruta... *',
-    opcionesFn:  () => {
-      const filtro = filaRefs[idx]?.rutaFiltro || '';
-      const all = (window.DATOS.rutas || []).map(r => {
-        const vals   = Object.values(r);
-        const nombre = String(vals[0] || '');
-        const prov   = String(vals[1] || '');
-        return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov };
-      });
-      if (!filtro) return all;
-      const norm = filtro.toLowerCase();
-      return all.filter(r => r.rutaProv.toLowerCase() === norm || r.rutaProv === '');
-    }
+  refs.ruta = crearDropdownSimple({
+    opciones:     getRutasOpciones(''),
+    placeholder:  'Buscar ruta... *',
+    mensajeVacio: 'No hay rutas maestras cargadas',
+    onChange: () => {}
   });
 
-  refs.cond = crearDropdownBuscable({
-    inputClass:       'f-conductor',
+  refs.cond = crearDropdownSimple({
+    opciones:         tripOpciones,
     placeholder:      'Buscar conductor... *',
-    opcionesFn:       () => (window.DATOS.tripulantes || []).map(t => ({
-      value: t.nombre_completo, labelCorto: t.nombre_completo,
-      label: t.nombre_completo + ' — ' + t.email,
-      extra: { nombre: t.nombre_completo, email: t.email }
-    })),
-    deshabilitadosFn: () => getConductoresYaUsados(idx, 'conductor')
+    mensajeVacio:     'No hay conductores disponibles',
+    deshabilitadosFn: () => getConductoresYaUsados(idx, 'conductor'),
+    onChange: () => {}
   });
 
-  refs.cond2 = crearDropdownBuscable({
-    inputClass:       'f-segundo',
+  refs.cond2 = crearDropdownSimple({
+    opciones:         tripOpciones,
     placeholder:      '2do conductor...',
-    opcionesFn:       () => (window.DATOS.tripulantes || []).map(t => ({
-      value: t.nombre_completo, labelCorto: t.nombre_completo,
-      label: t.nombre_completo + ' — ' + t.email,
-      extra: { nombre: t.nombre_completo, email: t.email }
-    })),
-    deshabilitadosFn: () => getConductoresYaUsados(idx, 'segundoConductor')
+    mensajeVacio:     'No hay conductores disponibles',
+    deshabilitadosFn: () => getConductoresYaUsados(idx, 'segundoConductor'),
+    onChange: () => {}
   });
 
   filaRefs[idx] = refs;
@@ -453,51 +459,38 @@ function crearFilaMeli(idx, datos) {
   tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.wrap);
   tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.wrap);
 
-  // Pre-fill valores de input (DOM-independiente — solo modifica el input)
+  // Pre-fill valores desde Excel (encontrado → normal, no encontrado → naranja)
   if (datos.dirMatch) {
-    refs.dir.setValue(datos.dirMatch.code, `[${datos.dirMatch.code}] — ${datos.dirMatch.name}`);
+    refs.dir.setValue(datos.dirMatch.code, '[' + datos.dirMatch.code + '] — ' + datos.dirMatch.name);
   } else if (datos.dirRaw) {
-    refs.dir.input.value         = datos.dirRaw;
-    refs.dir.input.dataset.value = datos.dirRaw;
-    refs.dir.input.classList.add('no-validado');
+    refs.dir.setValue(datos.dirRaw);
   }
 
   if (datos.vehMatch) {
-    refs.veh.setValue(datos.vehMatch.code, datos.vehMatch.code);
+    refs.veh.setValue(datos.vehMatch.code);
   } else if (datos.vehRaw) {
-    refs.veh.input.value         = datos.vehRaw;
-    refs.veh.input.dataset.value = datos.vehRaw;
-    refs.veh.input.classList.add('no-validado');
+    refs.veh.setValue(datos.vehRaw);
   }
 
   if (datos.arrMatch) {
-    refs.arr.setValue(datos.arrMatch, datos.arrMatch);
+    refs.arr.setValue(datos.arrMatch);
   } else if (datos.arrastRaw) {
-    refs.arr.input.value         = datos.arrastRaw;
-    refs.arr.input.dataset.value = datos.arrastRaw;
-    refs.arr.input.classList.add('no-validado');
+    refs.arr.setValue(datos.arrastRaw);
   }
 
   const _provNombre = datos.provMatch ? datos.provMatch.name : PROVEEDOR_MELI_FIJO;
-  refs.prov.setValue(_provNombre, _provNombre);
-  if (!datos.provMatch) refs.prov.input.classList.add('no-validado');
+  refs.prov.setValue(_provNombre);
 
   if (datos.condMatch) {
-    refs.cond.setValue(datos.condMatch.nombre_completo, datos.condMatch.nombre_completo);
-    refs.cond.input.dataset.extra = JSON.stringify({ nombre: datos.condMatch.nombre_completo, email: datos.condMatch.email || '' });
+    refs.cond.setValue(datos.condMatch.nombre_completo);
   } else if (datos.condRaw) {
-    refs.cond.input.value         = datos.condRaw;
-    refs.cond.input.dataset.value = datos.condRaw;
-    refs.cond.input.classList.add('no-validado');
+    refs.cond.setValue(datos.condRaw);
   }
 
   if (datos.cond2Match) {
-    refs.cond2.setValue(datos.cond2Match.nombre_completo, datos.cond2Match.nombre_completo);
-    refs.cond2.input.dataset.extra = JSON.stringify({ nombre: datos.cond2Match.nombre_completo, email: datos.cond2Match.email || '' });
+    refs.cond2.setValue(datos.cond2Match.nombre_completo);
   } else if (datos.cond2Raw) {
-    refs.cond2.input.value         = datos.cond2Raw;
-    refs.cond2.input.dataset.value = datos.cond2Raw;
-    refs.cond2.input.classList.add('no-validado');
+    refs.cond2.setValue(datos.cond2Raw);
   }
 
   // _postInit: llamar DESPUÉS de que el tr esté en el DOM
@@ -521,85 +514,6 @@ function eliminarFila(btn) {
     document.getElementById('btnCargarViajes').style.display = 'none';
     document.getElementById('meliAlertaNoValidados').style.display = 'none';
   }
-}
-
-// ── Dropdown buscable ──
-
-function crearDropdownBuscable({ inputClass = '', placeholder = '', opcionesFn, onChange = null, deshabilitadosFn = null }) {
-  const wrap  = document.createElement('div');
-  wrap.className = 'dropdown-wrap';
-
-  const input = document.createElement('input');
-  input.type         = 'text';
-  input.className    = 'dropdown-input' + (inputClass ? ' ' + inputClass : '');
-  input.placeholder  = placeholder;
-  input.autocomplete = 'off';
-  input.dataset.value = '';
-
-  const list = document.createElement('div');
-  list.className = 'dropdown-list';
-
-  function poblar(q) {
-    list.innerHTML = '';
-    const opciones       = opcionesFn ? opcionesFn() : [];
-    const deshabilitados = deshabilitadosFn ? deshabilitadosFn() : [];
-    const norm      = q.trim().toLowerCase();
-    const filtradas = norm ? opciones.filter(o => o.label.toLowerCase().includes(norm)) : opciones;
-    if (!filtradas.length) {
-      const el = document.createElement('div');
-      el.className = 'dropdown-option no-results';
-      el.textContent = 'Sin resultados';
-      list.appendChild(el);
-      return;
-    }
-    filtradas.slice(0, 120).forEach(opcion => {
-      const el       = document.createElement('div');
-      const disabled = deshabilitados.includes(opcion.value);
-      el.className   = 'dropdown-option' + (disabled ? ' disabled' : '');
-      el.textContent = opcion.label;
-      if (disabled) {
-        el.title = 'Ya seleccionado en otra fila';
-      } else {
-        el.addEventListener('mousedown', e => {
-          e.preventDefault();
-          input.dataset.value = opcion.value;
-          input.value         = opcion.labelCorto || opcion.label;
-          if (opcion.extra !== undefined) input.dataset.extra = JSON.stringify(opcion.extra);
-          input.classList.remove('error', 'no-validado');
-          list.classList.remove('open');
-          if (onChange) onChange(opcion.value, opcion.label, opcion);
-        });
-      }
-      list.appendChild(el);
-    });
-  }
-
-  input.addEventListener('focus', () => { poblar(input.value); abrirDropdown(input, list); });
-  input.addEventListener('input', () => { input.dataset.value = ''; poblar(input.value); abrirDropdown(input, list); });
-  input.addEventListener('blur',  () => setTimeout(() => {
-    list.classList.remove('open');
-    if (!input.dataset.value) input.value = '';
-  }, 160));
-
-  wrap.appendChild(input);
-  wrap.appendChild(list);
-
-  return {
-    wrap,
-    input,
-    getValue:   () => input.dataset.value || '',
-    getExtra:   () => { try { return JSON.parse(input.dataset.extra || '{}'); } catch { return {}; } },
-    setValue:   (v, label) => { input.dataset.value = v; input.value = label || v; },
-    clearValue: () => { input.dataset.value = ''; input.value = ''; }
-  };
-}
-
-function abrirDropdown(inputEl, listaEl) {
-  const rect = inputEl.getBoundingClientRect();
-  listaEl.style.top   = (rect.bottom + 2) + 'px';
-  listaEl.style.left  = rect.left + 'px';
-  listaEl.style.width = Math.max(rect.width, 240) + 'px';
-  listaEl.classList.add('open');
 }
 
 // ── Conductores sin duplicar ──
@@ -696,7 +610,18 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados para este empleador</span>';
     return;
   }
-  td.appendChild(crearMultiSelect(idx, 'costo', items));
+  const msId = 'ms-costo-' + idx;
+  let ms;
+  ms = crearMultiSelect({
+    opciones:     items,
+    placeholder:  'Etiquetas costo...',
+    mensajeVacio: 'Sin costos cargados para este empleador',
+    onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
+  });
+  ms.contenedor.id             = msId;
+  ms.contenedor.dataset.selected = '[]';
+  msRefs[msId] = ms;
+  td.appendChild(ms.contenedor);
 }
 
 // ── Etiquetas Ingreso ──
@@ -718,126 +643,24 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin tarifas cargadas para este proveedor</span>';
     return;
   }
-  td.appendChild(crearMultiSelect(idx, 'ingreso', items));
+  const msId = 'ms-ingreso-' + idx;
+  let ms;
+  ms = crearMultiSelect({
+    opciones:     items,
+    placeholder:  'Etiquetas ingreso...',
+    mensajeVacio: 'Sin tarifas cargadas para este proveedor',
+    onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
+  });
+  ms.contenedor.id             = msId;
+  ms.contenedor.dataset.selected = '[]';
+  msRefs[msId] = ms;
+  td.appendChild(ms.contenedor);
 }
 
 function onProveedorChange(idx, prov) {
   actualizarEtiquetasIngreso(idx, prov);
-  if (filaRefs[idx]) filaRefs[idx].rutaFiltro = prov;
-}
-
-// ── Multi-select con vigencia ──
-
-function crearMultiSelect(idx, tipo, items) {
-  const wrap = document.createElement('div');
-  wrap.className        = 'multi-select-wrap';
-  wrap.id               = `ms-${tipo}-${idx}`;
-  wrap.dataset.selected = '[]';
-
-  const pills = document.createElement('div');
-  pills.className = 'multi-pills';
-  const ph = document.createElement('span');
-  ph.className   = 'pills-placeholder';
-  ph.textContent = 'Seleccionar...';
-  pills.appendChild(ph);
-
-  const dropdown = document.createElement('div');
-  dropdown.className = 'multi-dropdown';
-
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'multi-search-wrap';
-  const searchInput = document.createElement('input');
-  searchInput.type        = 'text';
-  searchInput.placeholder = 'Buscar...';
-  searchInput.className   = 'multi-search';
-  searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
-    dropdown.querySelectorAll('label.multi-option').forEach(lbl => {
-      lbl.style.display = q ? (lbl.textContent.trim().toLowerCase().includes(q) ? '' : 'none') : '';
-    });
-  });
-  searchInput.addEventListener('mousedown', e => e.stopPropagation());
-  searchInput.addEventListener('keydown',   e => { if (e.key === 'Escape') dropdown.classList.remove('open'); });
-  searchWrap.appendChild(searchInput);
-  dropdown.appendChild(searchWrap);
-  dropdown.addEventListener('mousedown', e => e.stopPropagation());
-  dropdown.addEventListener('click',     e => e.stopPropagation());
-
-  items.forEach(item => {
-    const vigente  = estaVigente(item.vigenciaDesde, item.vigenciaHasta);
-    const color    = vigente ? '#ffffff' : '#e84040';
-
-    const lbl = document.createElement('label');
-    lbl.className  = 'multi-option';
-    lbl.style.cssText = 'display:block;padding:6px 10px;cursor:pointer;font-size:12px;line-height:20px;color:' + color + ';';
-    if (!vigente) lbl.title = 'Fuera de período de vigencia';
-
-    const cb = document.createElement('input');
-    cb.type  = 'checkbox';
-    cb.value = item.etiqueta;
-    cb.style.cssText = 'vertical-align:middle;margin-right:6px;cursor:pointer;accent-color:#01feff;';
-    cb.addEventListener('change', () => actualizarMultiSelect(wrap, pills, ph, items));
-
-    const txt = document.createElement('span');
-    txt.style.cssText = 'vertical-align:middle;color:' + color + ';';
-    txt.textContent   = item.etiqueta;
-
-    lbl.appendChild(cb);
-    lbl.appendChild(txt);
-    dropdown.appendChild(lbl);
-  });
-
-  pills.addEventListener('click', e => {
-    if (e.target.classList.contains('pill-remove')) return;
-    if (dropdown.classList.contains('open')) {
-      dropdown.classList.remove('open');
-    } else {
-      const rect = pills.getBoundingClientRect();
-      dropdown.style.top   = (rect.bottom + 2) + 'px';
-      dropdown.style.left  = rect.left + 'px';
-      dropdown.style.width = Math.max(rect.width, 320) + 'px';
-      dropdown.classList.add('open');
-      searchInput.value = '';
-      dropdown.querySelectorAll('label.multi-option').forEach(lbl => lbl.style.display = '');
-      setTimeout(() => searchInput.focus(), 10);
-    }
-  });
-  document.addEventListener('click', e => {
-    if (!wrap.contains(e.target)) dropdown.classList.remove('open');
-  });
-
-  wrap.appendChild(pills);
-  wrap.appendChild(dropdown);
-  return wrap;
-}
-
-function actualizarMultiSelect(wrap, pills, ph, items) {
-  const selected = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
-  wrap.dataset.selected = JSON.stringify(selected);
-  renderPills(pills, ph, selected, wrap, items);
-}
-
-function renderPills(pills, ph, selected, wrap, items) {
-  pills.innerHTML = '';
-  if (!selected.length) { pills.appendChild(ph); return; }
-  selected.forEach(val => {
-    const item    = items ? items.find(i => i.etiqueta === val) : null;
-    const vigente = item ? estaVigente(item.vigenciaDesde, item.vigenciaHasta) : true;
-    const pill    = document.createElement('span');
-    pill.className = 'pill' + (vigente ? '' : ' pill-fuera-vigencia');
-    if (!vigente) pill.title = 'Fuera de período de vigencia';
-    const rm = document.createElement('span');
-    rm.className   = 'pill-remove';
-    rm.textContent = '×';
-    rm.addEventListener('click', e => {
-      e.stopPropagation();
-      wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => { if (cb.value === val) cb.checked = false; });
-      actualizarMultiSelect(wrap, pills, ph, items);
-    });
-    pill.appendChild(document.createTextNode(val));
-    pill.appendChild(rm);
-    pills.appendChild(pill);
-  });
+  const refs = filaRefs[idx];
+  if (refs && refs.ruta) refs.ruta.setOpciones(getRutasOpciones(prov));
 }
 
 // ── Validación ──
@@ -862,13 +685,13 @@ function validarFilas() {
 
     const msC = document.getElementById(`ms-costo-${idx}`);
     const costoSel = msC ? JSON.parse(msC.dataset.selected || '[]') : [];
-    const pillsC = msC?.querySelector('.multi-pills');
-    if (pillsC) { pillsC.classList.toggle('error', !costoSel.length); if (!costoSel.length) ok = false; }
+    const triggerC = msC?.querySelector('.ms-trigger');
+    if (triggerC) { triggerC.classList.toggle('error', !costoSel.length); if (!costoSel.length) ok = false; }
 
     const msI = document.getElementById(`ms-ingreso-${idx}`);
     const ingresoSel = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
-    const pillsI = msI?.querySelector('.multi-pills');
-    if (pillsI) { pillsI.classList.toggle('error', !ingresoSel.length); if (!ingresoSel.length) ok = false; }
+    const triggerI = msI?.querySelector('.ms-trigger');
+    if (triggerI) { triggerI.classList.toggle('error', !ingresoSel.length); if (!ingresoSel.length) ok = false; }
   });
   return ok;
 }
@@ -1076,40 +899,65 @@ async function syncViajesDatos(accion, badgeId, btnId) {
 }
 
 function refrescarFilasExistentes() {
+  const tripOpciones = (window.DATOS.tripulantes || []).map(t => ({
+    value: t.nombre_completo,
+    labelCorto: t.nombre_completo,
+    label: t.nombre_completo + ' — ' + t.email,
+    extra: { nombre: t.nombre_completo, email: t.email }
+  }));
+
   document.querySelectorAll('#tripsTbody tr').forEach(tr => {
     const idx  = Number(tr.dataset.idx);
     const refs = filaRefs[idx];
     if (!refs) return;
+
     const msC = document.getElementById(`ms-costo-${idx}`);
     const msI = document.getElementById(`ms-ingreso-${idx}`);
     const prevCosto   = msC ? JSON.parse(msC.dataset.selected || '[]') : [];
     const prevIngreso = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
-    const vCode  = refs.veh?.getValue();
+
+    if (refs.dir) refs.dir.setOpciones((window.DATOS.direcciones || []).map(d => ({
+      value: d.code, labelCorto: d.code,
+      label: '[' + d.code + '] — ' + (d.name || '') + ' | ' + (d.address1 || '') + ', ' + (d.city || '')
+    })));
+
+    if (refs.veh) refs.veh.setOpciones((window.DATOS.flota || []).map(v => ({
+      value: v.code, labelCorto: v.code,
+      label: v.code + (v.description ? ' — ' + v.description : '') + ' | ' + (v.employer_name || 'Sin empleador')
+    })));
+
+    if (refs.arr) refs.arr.setOpciones((window.DATOS.arrastres || []).map(a => {
+      const vals = Object.values(a);
+      const v = String(vals[0] || '');
+      return { value: v, label: v + (vals[1] ? ' — ' + vals[1] : '') };
+    }));
+
+    if (refs.prov) refs.prov.setOpciones((window.DATOS.socios || [])
+      .filter(s => String(s.type || '').toLowerCase() === 'supplier')
+      .map(s => ({ value: s.name || '', label: s.name || '' })));
+
+    if (refs.ruta) refs.ruta.setOpciones(getRutasOpciones(refs.prov ? refs.prov.getValue() : ''));
+    if (refs.cond)  refs.cond.setOpciones(tripOpciones);
+    if (refs.cond2) refs.cond2.setOpciones(tripOpciones);
+
+    const vCode   = refs.veh?.getValue();
     const pNombre = refs.prov?.getValue();
-    if (vCode) { actualizarEtiquetasCosto(idx, vCode);    _restaurarMultiSelect(`ms-costo-${idx}`,   prevCosto); }
-    if (pNombre) { actualizarEtiquetasIngreso(idx, pNombre); _restaurarMultiSelect(`ms-ingreso-${idx}`, prevIngreso); }
+
+    if (vCode) {
+      actualizarEtiquetasCosto(idx, vCode);
+      _restaurarMultiSelect('ms-costo-' + idx, prevCosto);
+    }
+    if (pNombre) {
+      actualizarEtiquetasIngreso(idx, pNombre);
+      _restaurarMultiSelect('ms-ingreso-' + idx, prevIngreso);
+    }
   });
 }
 
 function _restaurarMultiSelect(msId, prevSelected) {
-  const ms = document.getElementById(msId);
-  if (!ms || !prevSelected.length) return;
-  ms.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    if (prevSelected.includes(cb.value)) cb.checked = true;
-  });
-  const pills = ms.querySelector('.multi-pills');
-  const ph    = ms.querySelector('.pills-placeholder');
-  const stillValid = prevSelected.filter(v =>
-    Array.from(ms.querySelectorAll('input[type="checkbox"]')).some(cb => cb.value === v)
-  );
-  ms.dataset.selected = JSON.stringify(stillValid);
-  if (pills && ph) {
-    const items = Array.from(ms.querySelectorAll('label.multi-option')).map(lbl => {
-      const cb = lbl.querySelector('input');
-      return { etiqueta: cb?.value || '', vigenciaDesde: '', vigenciaHasta: '' };
-    });
-    renderPills(pills, ph, stillValid, ms, items);
-  }
+  if (!prevSelected.length) return;
+  const ms = msRefs[msId];
+  if (ms) ms.setSeleccion(prevSelected);
 }
 
 // ── Toast ──
@@ -1154,10 +1002,3 @@ async function submitCambiarPass(e) {
     setLoading(btn, false);
   }
 }
-
-// ── Cerrar dropdowns al hacer scroll ──
-
-document.addEventListener('scroll', function() {
-  document.querySelectorAll('.dropdown-list.open').forEach(el => el.classList.remove('open'));
-  document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
-}, { capture: true, passive: true });

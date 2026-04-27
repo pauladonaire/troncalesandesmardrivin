@@ -652,6 +652,8 @@
 .ds-trigger-seleccionado { color: var(--color-white); }
 .ds-trigger-disabled { opacity: 0.5; cursor: not-allowed; }
 .ds-trigger.error { border-color: var(--color-danger) !important; }
+.ds-trigger-invalido { border-color: var(--color-warning) !important; color: var(--color-warning) !important; }
+.ds-trigger-invalido:hover { border-color: var(--color-warning); }
 
 .ds-panel {
   background: var(--color-surface);

@@ -529,6 +529,28 @@ function crearDropdownSimple({ opciones = [], placeholder = 'Seleccionar...', me
     getValue:  () => valorSeleccionado,
     getLabel:  () => labelSeleccionado,
     getExtra:  () => opcionSeleccionada ? (opcionSeleccionada.extra || {}) : {},
+    setValue(value, labelOverride) {
+      const opcion = opcionesActuales.find(o => o.value === value);
+      if (opcion) {
+        valorSeleccionado  = opcion.value;
+        labelSeleccionado  = labelOverride || opcion.labelCorto || opcion.label;
+        opcionSeleccionada = opcion;
+        trigger.textContent = labelSeleccionado;
+        trigger.classList.add('ds-trigger-seleccionado');
+        trigger.classList.remove('ds-trigger-invalido', 'error');
+        onChange(opcion.value, opcion.label, opcion);
+        return true;
+      }
+      if (value) {
+        valorSeleccionado  = value;
+        labelSeleccionado  = labelOverride || value;
+        opcionSeleccionada = null;
+        trigger.textContent = labelSeleccionado;
+        trigger.classList.remove('ds-trigger-seleccionado');
+        trigger.classList.add('ds-trigger-invalido');
+      }
+      return false;
+    },
     setOpciones(nuevasOpciones) {
       opcionesActuales = nuevasOpciones.slice();
       if (panel.style.display !== 'none') renderItems(inputBusqueda.value);
@@ -547,7 +569,7 @@ function crearDropdownSimple({ opciones = [], placeholder = 'Seleccionar...', me
       labelSeleccionado  = '';
       opcionSeleccionada = null;
       trigger.textContent = placeholder;
-      trigger.classList.remove('ds-trigger-seleccionado', 'error');
+      trigger.classList.remove('ds-trigger-seleccionado', 'ds-trigger-invalido', 'error');
       cerrar();
     },
     disable() { deshabilitado = true;  trigger.classList.add('ds-trigger-disabled'); },
