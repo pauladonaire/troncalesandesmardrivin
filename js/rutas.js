@@ -6,7 +6,7 @@ let SOCIOS  = [];
 let HEADERS = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
-  SESSION = requireRole(['ADMIN_GENERAL', 'ADMIN_TRAFICO']);
+  SESSION = requireSession();
   if (!SESSION) return;
   document.getElementById('userName').textContent     = SESSION.nombre_completo;
   document.getElementById('userRolBadge').textContent = SESSION.rol;

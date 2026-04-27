@@ -84,16 +84,14 @@ function getDatosRutas(token) {
   var session = validateSession(token);
   if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
   try {
-    var cfg    = CONFIG.SHEETS.OTROS_DATOS;
-    var values = sheetsRead_(cfg.id, cfg.tabs.RUTAS + '!A:Z') || [];
-    var headers = values.length > 0 ? values[0] : ['Nombre', 'Proveedor'];
-    var rutas   = values.length > 1 ? values.slice(1).filter(function(r) { return r[0]; }) : [];
-
-    var sociosValues = sheetsRead_(CONFIG.SHEETS.SOCIOS.id, CONFIG.SHEETS.SOCIOS.tab + '!A:F') || [];
-    var socios = sociosValues.slice(1)
-      .filter(function(r) { return r[3] === 'supplier'; })
-      .map(function(r) { return { name: r[2] || '' }; });
-
+    // Reutiliza el cache de getDatosMaestros (6h TTL) — cero lecturas extra si está caliente
+    var maestros   = getDatosMaestros(token);
+    var rutasObjs  = maestros.rutas || [];
+    var headers    = rutasObjs.length > 0 ? Object.keys(rutasObjs[0]) : ['Nombre', 'Proveedor'];
+    var rutas      = rutasObjs.map(function(r) { return Object.values(r); });
+    var socios     = (maestros.socios || [])
+      .filter(function(s) { return s.type === 'supplier'; })
+      .map(function(s) { return { name: s.name }; });
     return { ok: true, rutas: rutas, headers: headers, socios: socios };
   } catch(e) {
     return { ok: false, error: e.message };
@@ -118,10 +116,11 @@ function getDatosArrastres(token) {
   var session = validateSession(token);
   if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
   try {
-    var cfg      = CONFIG.SHEETS.OTROS_DATOS;
-    var values   = sheetsRead_(cfg.id, cfg.tabs.ARRASTRES + '!A:Z') || [];
-    var headers  = values.length > 0 ? values[0] : ['Código', 'Descripción'];
-    var arrastres = values.length > 1 ? values.slice(1).filter(function(r) { return r[0]; }) : [];
+    // Reutiliza el cache de getDatosMaestros (6h TTL) — cero lecturas extra si está caliente
+    var maestros  = getDatosMaestros(token);
+    var arrObjs   = maestros.arrastres || [];
+    var headers   = arrObjs.length > 0 ? Object.keys(arrObjs[0]) : ['Código', 'Descripción'];
+    var arrastres = arrObjs.map(function(r) { return Object.values(r); });
     return { ok: true, arrastres: arrastres, headers: headers };
   } catch(e) {
     return { ok: false, error: e.message };
