@@ -83,9 +83,6 @@ function addArrastre(token, datos) {
 function getDatosRutas(token) {
   var session = validateSession(token);
   if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
-  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
-    return { ok: false, error: 'Sin permisos para esta operación' };
-  }
   try {
     var cfg    = CONFIG.SHEETS.OTROS_DATOS;
     var values = sheetsRead_(cfg.id, cfg.tabs.RUTAS + '!A:Z') || [];
@@ -106,9 +103,6 @@ function getDatosRutas(token) {
 function addRutasMaestras(token, filas) {
   var session = validateSession(token);
   if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
-  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
-    return { ok: false, error: 'Sin permisos para esta operación' };
-  }
   try {
     var cfg  = CONFIG.SHEETS.OTROS_DATOS;
     var rows = filas.map(function(f) { return Array.isArray(f) ? f : Object.values(f); });
@@ -123,9 +117,6 @@ function addRutasMaestras(token, filas) {
 function getDatosArrastres(token) {
   var session = validateSession(token);
   if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
-  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
-    return { ok: false, error: 'Sin permisos para esta operación' };
-  }
   try {
     var cfg      = CONFIG.SHEETS.OTROS_DATOS;
     var values   = sheetsRead_(cfg.id, cfg.tabs.ARRASTRES + '!A:Z') || [];
@@ -140,9 +131,6 @@ function getDatosArrastres(token) {
 function addArrastres(token, filas) {
   var session = validateSession(token);
   if (!session) return { ok: false, error: 'Sesión inválida o expirada' };
-  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
-    return { ok: false, error: 'Sin permisos para esta operación' };
-  }
   try {
     var cfg  = CONFIG.SHEETS.OTROS_DATOS;
     var rows = filas.map(function(f) { return Array.isArray(f) ? f : Object.values(f); });

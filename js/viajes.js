@@ -147,14 +147,12 @@ function inicializarPaso1() {
     if (sbAdmin) sbAdmin.style.display = 'flex';
     if (sbDiv)   sbDiv.style.display   = 'block';
   }
-  if (SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO') {
-    const sbRutas        = document.getElementById('sbRutasLink');
-    const sbArrastres    = document.getElementById('sbArrastresLink');
-    const sbDatosDivider = document.getElementById('sbDatosDivider');
-    if (sbRutas)        sbRutas.style.display        = 'flex';
-    if (sbArrastres)    sbArrastres.style.display    = 'flex';
-    if (sbDatosDivider) sbDatosDivider.style.display = 'block';
-  }
+  const sbRutas        = document.getElementById('sbRutasLink');
+  const sbArrastres    = document.getElementById('sbArrastresLink');
+  const sbDatosDivider = document.getElementById('sbDatosDivider');
+  if (sbRutas)        sbRutas.style.display        = 'flex';
+  if (sbArrastres)    sbArrastres.style.display    = 'flex';
+  if (sbDatosDivider) sbDatosDivider.style.display = 'block';
   if (SESSION.rol === 'OPERACION_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min      = hoy;
