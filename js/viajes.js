@@ -13,19 +13,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('userRolBadge').textContent = SESSION.rol;
   document.getElementById('initLoader').style.display = 'flex';
   document.getElementById('contenido').style.display  = 'none';
+  const loaderTxt = document.getElementById('initLoaderTxt');
+  if (loaderTxt) loaderTxt.textContent = 'Conectando...';
   try {
+    const t0 = Date.now();
+    if (loaderTxt) loaderTxt.textContent = 'Cargando datos maestros...';
     const res = await gasCall('getDatosMaestros');
     if (res.ok === false) throw new Error(res.error || 'Error al cargar datos maestros');
     window.DATOS = res;
+    const seg = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log('Datos maestros en ' + seg + 's' + (res.fromCache ? ' (caché)' : ' (Sheets)'));
     document.getElementById('initLoader').style.display = 'none';
     document.getElementById('contenido').style.display  = 'block';
     inicializarPaso1();
+    _mostrarResumenDatos(res);
   } catch (e) {
     document.getElementById('initLoader').style.display = 'none';
     document.getElementById('initError').textContent    = 'Error al cargar datos: ' + e.message;
     document.getElementById('initError').style.display  = 'block';
   }
 });
+
+function _mostrarResumenDatos(datos) {
+  const el = document.getElementById('resumenDatos');
+  if (!el) return;
+  el.innerHTML =
+    '<span>' + (datos.direcciones  ? datos.direcciones.length  : 0) + ' direcciones</span>' +
+    '<span>' + (datos.flota        ? datos.flota.length        : 0) + ' vehículos</span>'   +
+    '<span>' + (datos.tripulantes  ? datos.tripulantes.length  : 0) + ' conductores</span>' +
+    '<span>' + (datos.socios       ? datos.socios.length       : 0) + ' socios</span>';
+  el.style.display = 'flex';
+}
 
 // ── PASO 1 ──
 

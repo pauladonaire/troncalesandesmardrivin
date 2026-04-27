@@ -29,15 +29,13 @@ function getArrastres() {
 }
 
 function getEsquemasCostos() {
-  const cfg  = CONFIG.SHEETS.OTROS_DATOS;
-  const rows = sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_COSTOS + '!A:AA');
-  return rows || [];
+  const cfg = CONFIG.SHEETS.OTROS_DATOS;
+  return sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_COSTOS + '!A:AA') || [];
 }
 
 function getEsquemasIngresos() {
-  const cfg  = CONFIG.SHEETS.OTROS_DATOS;
-  const rows = sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_INGRESOS + '!A:AA');
-  return rows || [];
+  const cfg = CONFIG.SHEETS.OTROS_DATOS;
+  return sheetsRead_(cfg.id, cfg.tabs.ESQUEMAS_INGRESOS + '!A:AA') || [];
 }
 
 /**

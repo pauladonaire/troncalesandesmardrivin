@@ -70,6 +70,7 @@ function syncDirecciones() {
   const cfg = CONFIG.SHEETS.DIRECCIONES;
   sheetsClear_(cfg.id, cfg.tab + '!A2:Z');
   if (rows.length > 0) sheetsWrite_(cfg.id, cfg.tab + '!A2', rows);
+  invalidarCacheDatosMaestros();
   return { ok: true, count: rows.length };
 }
 
@@ -96,6 +97,7 @@ function syncTripulantes() {
   const cfg = CONFIG.SHEETS.TRIPULANTES;
   sheetsClear_(cfg.id, cfg.tab + '!A2:Z');
   if (rows.length > 0) sheetsWrite_(cfg.id, cfg.tab + '!A2', rows);
+  invalidarCacheDatosMaestros();
   return { ok: true, count: rows.length };
 }
 
@@ -122,6 +124,7 @@ function syncFlota() {
   const cfg = CONFIG.SHEETS.FLOTA;
   sheetsClear_(cfg.id, cfg.tab + '!A2:Z');
   if (rows.length > 0) sheetsWrite_(cfg.id, cfg.tab + '!A2', rows);
+  invalidarCacheDatosMaestros();
   return { ok: true, count: rows.length };
 }
 
@@ -147,6 +150,7 @@ function syncSocios() {
   const cfg = CONFIG.SHEETS.SOCIOS;
   sheetsClear_(cfg.id, cfg.tab + '!A2:Z');
   if (rows.length > 0) sheetsWrite_(cfg.id, cfg.tab + '!A2', rows);
+  invalidarCacheDatosMaestros();
   return { ok: true, count: rows.length };
 }
 
