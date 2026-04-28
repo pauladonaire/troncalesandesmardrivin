@@ -202,8 +202,6 @@ function _detectarColumnas(headers) {
     if (map.tractor   === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
     if (map.arrastre  === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
     if (map.servicio  === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
-    // NUEVO: Detección de la columna Tipo de Vehículo (Columna E en tu foto)
-    if (map.tipoVehiculo === undefined && (n.includes('tipo') && n.includes('vehiculo'))) map.tipoVehiculo = i;
     // Conductor: requiere "nombre" + "conductor" (excluye "ID del Conductor")
     if (map.conductor === undefined && n.includes('nombre') && n.includes('conductor') && !n.includes('adicional') && !n.includes('secundario')) map.conductor = i;
     // 2do conductor: requiere "nombre" + "adicional"/"secundario"/"2do"
@@ -241,7 +239,6 @@ function _generarDesdeRows(rows) {
     const tractRaw  = colMap.tractor   !== undefined ? String(row[colMap.tractor]   || '').trim() : '';
     const arrastRaw = colMap.arrastre  !== undefined ? String(row[colMap.arrastre]  || '').trim() : '';
     const servicio  = colMap.servicio  !== undefined ? String(row[colMap.servicio]  || '').trim() : '';
-    const tipoVehiculo = colMap.tipoVehiculo !== undefined ? String(row[colMap.tipoVehiculo] || '').trim() : '';
     const condRaw   = colMap.conductor !== undefined ? String(row[colMap.conductor] || '').trim() : '';
     const cond2Raw  = colMap.cond2     !== undefined ? String(row[colMap.cond2]     || '').trim() : '';
 
@@ -252,33 +249,21 @@ function _generarDesdeRows(rows) {
     const cond2Match = _buscarConductor(cond2Raw);
     const provMatch  = _buscarProveedor(PROVEEDOR_MELI_FIJO);
 
-    // NUEVA LÓGICA DE ETIQUETA: SERVICIO / TIPO (MAYÚSCULAS)
-    // Extraemos el tipo de vehículo
-    const tipoRaw = colMap.tipoVehiculo !== undefined ? String(row[colMap.tipoVehiculo] || '').trim() : '';
+    if (!dirMatch  && destRaw)  noValidados++;
+    if (!vehMatch  && tractRaw) noValidados++;
+    if (!condMatch && condRaw)  noValidados++;
 
-    // Armamos la etiqueta combinada en MAYÚSCULAS
-    const costoAuto = (servicio && tipoRaw) ? `${servicio} / ${tipoRaw}`.toUpperCase() : servicio.toUpperCase();
-
-    // Dentro de dataRows.forEach((row, i) => { ...
     const datos = {
-    codigoDespacho: codigoDespacho + '-' + (i + 1),
-    altCode,
-    unidades1: UNIDADES_MELI_FIJAS,
-    dirMatch, dirRaw: destRaw,
-    vehMatch, vehRaw: tractRaw,
-    arrMatch, arrastRaw,
-    servicio,
-    tipoRaw,    // Asegúrate de que esté aquí [cite: 55]
-    costoAuto,   // Asegúrate de que esté aquí [cite: 55]
-    condMatch, condRaw,
-    cond2Match, cond2Raw,
-    provMatch
+      codigoDespacho: codigoDespacho + '-' + (i + 1),
+      altCode, unidades1: UNIDADES_MELI_FIJAS,
+      dirMatch, dirRaw: destRaw,
+      vehMatch, vehRaw: tractRaw,
+      arrMatch, arrastRaw,
+      servicio,
+      condMatch, condRaw,
+      cond2Match, cond2Raw,
+      provMatch
     };
-    // Borrá cualquier otra definición de "const datos = { ... }" que esté debajo de esta[cite: 57].
-
-
-
-
     const tr = crearFilaMeli(i, datos);
     tbody.appendChild(tr);
     tr._postInit();
@@ -512,23 +497,10 @@ function crearFilaMeli(idx, datos) {
   tr._postInit = function() {
     if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
     onProveedorChange(idx, _provNombre);
-
-    const r = filaRefs[idx];
-
-    // 1. Ruta Maestra = Descripción (Servicio)
-    if (datos.servicio && r.ruta) {
-        r.ruta.setValue(datos.servicio); [cite: 94, 95]
-    }
-
-    // 2. ETIQUETA DE INGRESO = Servicio / Tipo de Vehículo (MAYÚSCULAS)
-    const msI = msRefs['ms-ingreso-' + idx];
-    if (msI && datos.costoAuto) { 
-        // Usamos 'costoAuto' porque ahí guardamos la combinación de Servicio/Tipo en el paso anterior
-        msI.setSeleccion([datos.costoAuto]); [cite: 96, 97]
-    }
-
-    // 3. Etiqueta de Costo = Se queda como viene del sistema (no tocamos nada automático aquí)
   };
+
+  return tr;
+}
 
 // ── Eliminar fila ──
 
@@ -743,9 +715,6 @@ function recolectarViajes() {
     const c2Extra = refs.cond2?.getExtra() || {};
     const _despacho = tr.querySelector('.f-despacho')?.value || '';
     const _alt      = tr.querySelector('.f-alt')?.value      || '';
-    const descripcionActual = tr.querySelector('.f-desc')?.value || '';
-    const tipoVehiculo = tr.dataset.tipoRaw || '';
-    const ingresoCombinado = (descripcionActual + ' / ' + tipoVehiculo).toUpperCase();
     viajes.push({
       codigoDespacho:         _alt ? (_despacho + ' | ' + _alt) : _despacho,
       codigoAlternativo:      _alt,
@@ -758,8 +727,8 @@ function recolectarViajes() {
       empleador:              getEmpleadorDeFila(idx),
       etiquetasCosto:         msC ? JSON.parse(msC.dataset.selected || '[]') : [],
       proveedor:              refs.prov?.getValue()                  || '',
-      etiquetasIngreso:       [ingresoCombinado],
-      rutaMaestra:            tr.querySelector('.f-desc')?.value || '',
+      etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
+      rutaMaestra:            refs.ruta?.getValue()                  || '',
       conductorEmail:         cExtra.email                           || '',
       segundoConductorNombre: c2Extra.nombre                         || '',
       descripcionViaje:       tr.querySelector('.f-desc')?.value     || ''
