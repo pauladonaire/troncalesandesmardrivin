@@ -206,13 +206,13 @@ function _detectarColumnas(headers) {
     // Conductor: requiere "nombre" + "conductor" (excluye "ID del Conductor")
     if (map.conductor === undefined && n.includes('nombre') && n.includes('conductor') && !n.includes('adicional') && !n.includes('secundario')) map.conductor = i;
     // 2do conductor: requiere "nombre" + "adicional"/"secundario"/"2do"
-    if (map.cond2     === undefined && n.includes('nombre') && n.includes('conductor') && (n.includes('adicional') || n.includes('secundario') || n.includes('2do'))) map.cond2 = i;
+    if (map.cond2     === undefined && n.includes('nombre') && n.includes('conductor') && (n.includes('2') || n.includes('2') || n.includes('2do'))) map.cond2 = i;
   });
   // Segunda pasada: fallback sin "nombre" (solo si no se encontró en la primera)
   headers.forEach((h, i) => {
     const n = _normHeader(h);
     if (map.conductor === undefined && (n === 'conductor' || (n.includes('conductor') && n.includes('principal') && !n.includes('id')))) map.conductor = i;
-    if (map.cond2     === undefined && n.includes('conductor') && (n.includes('adicional') || n.includes('segundo') || n.includes('2do')) && !n.includes('id')) map.cond2 = i;
+    if (map.cond2     === undefined && n.includes('conductor') && (n.includes('adicional') || n.includes('2') || n.includes('2do')) && !n.includes('id')) map.cond2 = i;
   });
   return map;
 }
