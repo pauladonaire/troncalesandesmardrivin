@@ -259,33 +259,26 @@ function _generarDesdeRows(rows) {
     // Armamos la etiqueta combinada en MAYÚSCULAS
     const costoAuto = (servicio && tipoRaw) ? `${servicio} / ${tipoRaw}`.toUpperCase() : servicio.toUpperCase();
 
-   // Agregá 'tipoRaw' y 'costoAuto' adentro del objeto 'const datos = { ... }'
-   // Debería quedar algo así:
-   const datos = {
-     codigoDespacho: codigoDespacho + '-' + (i + 1),
-     altCode, 
-     unidades1: UNIDADES_MELI_FIJAS,
-     servicio,
-     tipoRaw, // <--- Agregado
-     costoAuto, // <--- Agregado
-     // ... (lo demás queda igual)
-     };
-
-    if (!dirMatch  && destRaw)  noValidados++;
-    if (!vehMatch  && tractRaw) noValidados++;
-    if (!condMatch && condRaw)  noValidados++;
-
+    // Dentro de dataRows.forEach((row, i) => { ...
     const datos = {
-      codigoDespacho: codigoDespacho + '-' + (i + 1),
-      altCode, unidades1: UNIDADES_MELI_FIJAS,
-      dirMatch, dirRaw: destRaw,
-      vehMatch, vehRaw: tractRaw,
-      arrMatch, arrastRaw,
-      servicio,
-      condMatch, condRaw,
-      cond2Match, cond2Raw,
-      provMatch
+    codigoDespacho: codigoDespacho + '-' + (i + 1),
+    altCode,
+    unidades1: UNIDADES_MELI_FIJAS,
+    dirMatch, dirRaw: destRaw,
+    vehMatch, vehRaw: tractRaw,
+    arrMatch, arrastRaw,
+    servicio,
+    tipoRaw,    // Asegúrate de que esté aquí [cite: 55]
+    costoAuto,   // Asegúrate de que esté aquí [cite: 55]
+    condMatch, condRaw,
+    cond2Match, cond2Raw,
+    provMatch
     };
+    // Borrá cualquier otra definición de "const datos = { ... }" que esté debajo de esta[cite: 57].
+
+
+
+
     const tr = crearFilaMeli(i, datos);
     tbody.appendChild(tr);
     tr._postInit();
@@ -517,31 +510,25 @@ function crearFilaMeli(idx, datos) {
 
   // _postInit: llamar DESPUÉS de que el tr esté en el DOM
   tr._postInit = function() {
-  if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
-  onProveedorChange(idx, _provNombre);
+    if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
+    onProveedorChange(idx, _provNombre);
 
-  const refs = filaRefs[idx];
+    const r = filaRefs[idx];
 
-  // 1. Ruta Maestra = Lo mismo que Descripción (Servicio)
-  if (datos.servicio && refs.ruta) {
-      refs.ruta.setValue(datos.servicio);
-  }
+    // 1. Ruta Maestra = Descripción (Servicio)
+    if (datos.servicio && r.ruta) {
+        r.ruta.setValue(datos.servicio); [cite: 94, 95]
+    }
 
-  // 2. Etiquetas de Ingreso = Lo mismo que Descripción
-  const msI = msRefs['ms-ingreso-' + idx];
-  if (msI && datos.servicio) {
-      msI.setSeleccion([datos.servicio]);
-  }
+    // 2. ETIQUETA DE INGRESO = Servicio / Tipo de Vehículo (MAYÚSCULAS)
+    const msI = msRefs['ms-ingreso-' + idx];
+    if (msI && datos.costoAuto) { 
+        // Usamos 'costoAuto' porque ahí guardamos la combinación de Servicio/Tipo en el paso anterior
+        msI.setSeleccion([datos.costoAuto]); [cite: 96, 97]
+    }
 
-  // 3. Etiquetas de Costo = Servicio / Tipo (Mayúsculas)
-  const msC = msRefs['ms-costo-' + idx];
-  if (msC && datos.costoAuto) {
-      msC.setSeleccion([datos.costoAuto]);
-  }
+    // 3. Etiqueta de Costo = Se queda como viene del sistema (no tocamos nada automático aquí)
   };
-
-  return tr;
-}
 
 // ── Eliminar fila ──
 
@@ -756,6 +743,9 @@ function recolectarViajes() {
     const c2Extra = refs.cond2?.getExtra() || {};
     const _despacho = tr.querySelector('.f-despacho')?.value || '';
     const _alt      = tr.querySelector('.f-alt')?.value      || '';
+    const descripcionActual = tr.querySelector('.f-desc')?.value || '';
+    const tipoVehiculo = tr.dataset.tipoRaw || '';
+    const ingresoCombinado = (descripcionActual + ' / ' + tipoVehiculo).toUpperCase();
     viajes.push({
       codigoDespacho:         _alt ? (_despacho + ' | ' + _alt) : _despacho,
       codigoAlternativo:      _alt,
@@ -768,7 +758,7 @@ function recolectarViajes() {
       empleador:              getEmpleadorDeFila(idx),
       etiquetasCosto:         msC ? JSON.parse(msC.dataset.selected || '[]') : [],
       proveedor:              refs.prov?.getValue()                  || '',
-      etiquetasIngreso:       [tr.querySelector('.f-desc')?.value].filter(Boolean),
+      etiquetasIngreso:       [ingresoCombinado],
       rutaMaestra:            tr.querySelector('.f-desc')?.value || '',
       conductorEmail:         cExtra.email                           || '',
       segundoConductorNombre: c2Extra.nombre                         || '',
