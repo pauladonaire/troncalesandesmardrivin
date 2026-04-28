@@ -202,6 +202,8 @@ function _detectarColumnas(headers) {
     if (map.tractor   === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
     if (map.arrastre  === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
     if (map.servicio  === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
+    // NUEVO: Detección de la columna Tipo de Vehículo (Columna E en tu foto)
+    if (map.tipoVehiculo === undefined && (n.includes('tipo') && n.includes('vehiculo'))) map.tipoVehiculo = i;
     // Conductor: requiere "nombre" + "conductor" (excluye "ID del Conductor")
     if (map.conductor === undefined && n.includes('nombre') && n.includes('conductor') && !n.includes('adicional') && !n.includes('secundario')) map.conductor = i;
     // 2do conductor: requiere "nombre" + "adicional"/"secundario"/"2do"
@@ -239,6 +241,7 @@ function _generarDesdeRows(rows) {
     const tractRaw  = colMap.tractor   !== undefined ? String(row[colMap.tractor]   || '').trim() : '';
     const arrastRaw = colMap.arrastre  !== undefined ? String(row[colMap.arrastre]  || '').trim() : '';
     const servicio  = colMap.servicio  !== undefined ? String(row[colMap.servicio]  || '').trim() : '';
+    const tipoVehiculo = colMap.tipoVehiculo !== undefined ? String(row[colMap.tipoVehiculo] || '').trim() : '';
     const condRaw   = colMap.conductor !== undefined ? String(row[colMap.conductor] || '').trim() : '';
     const cond2Raw  = colMap.cond2     !== undefined ? String(row[colMap.cond2]     || '').trim() : '';
 
@@ -248,6 +251,25 @@ function _generarDesdeRows(rows) {
     const condMatch  = _buscarConductor(condRaw);
     const cond2Match = _buscarConductor(cond2Raw);
     const provMatch  = _buscarProveedor(PROVEEDOR_MELI_FIJO);
+
+    // NUEVA LÓGICA DE ETIQUETA: SERVICIO / TIPO (MAYÚSCULAS)
+    // Extraemos el tipo de vehículo
+    const tipoRaw = colMap.tipoVehiculo !== undefined ? String(row[colMap.tipoVehiculo] || '').trim() : '';
+
+    // Armamos la etiqueta combinada en MAYÚSCULAS
+    const costoAuto = (servicio && tipoRaw) ? `${servicio} / ${tipoRaw}`.toUpperCase() : servicio.toUpperCase();
+
+   // Agregá 'tipoRaw' y 'costoAuto' adentro del objeto 'const datos = { ... }'
+   // Debería quedar algo así:
+   const datos = {
+     codigoDespacho: codigoDespacho + '-' + (i + 1),
+     altCode, 
+     unidades1: UNIDADES_MELI_FIJAS,
+     servicio,
+     tipoRaw, // <--- Agregado
+     costoAuto, // <--- Agregado
+     // ... (lo demás queda igual)
+     };
 
     if (!dirMatch  && destRaw)  noValidados++;
     if (!vehMatch  && tractRaw) noValidados++;
@@ -495,8 +517,27 @@ function crearFilaMeli(idx, datos) {
 
   // _postInit: llamar DESPUÉS de que el tr esté en el DOM
   tr._postInit = function() {
-    if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
-    onProveedorChange(idx, _provNombre);
+  if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
+  onProveedorChange(idx, _provNombre);
+
+  const refs = filaRefs[idx];
+
+  // 1. Ruta Maestra = Lo mismo que Descripción (Servicio)
+  if (datos.servicio && refs.ruta) {
+      refs.ruta.setValue(datos.servicio);
+  }
+
+  // 2. Etiquetas de Ingreso = Lo mismo que Descripción
+  const msI = msRefs['ms-ingreso-' + idx];
+  if (msI && datos.servicio) {
+      msI.setSeleccion([datos.servicio]);
+  }
+
+  // 3. Etiquetas de Costo = Servicio / Tipo (Mayúsculas)
+  const msC = msRefs['ms-costo-' + idx];
+  if (msC && datos.costoAuto) {
+      msC.setSeleccion([datos.costoAuto]);
+  }
   };
 
   return tr;
@@ -727,8 +768,8 @@ function recolectarViajes() {
       empleador:              getEmpleadorDeFila(idx),
       etiquetasCosto:         msC ? JSON.parse(msC.dataset.selected || '[]') : [],
       proveedor:              refs.prov?.getValue()                  || '',
-      etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
-      rutaMaestra:            refs.ruta?.getValue()                  || '',
+      etiquetasIngreso:       [tr.querySelector('.f-desc')?.value].filter(Boolean),
+      rutaMaestra:            tr.querySelector('.f-desc')?.value || '',
       conductorEmail:         cExtra.email                           || '',
       segundoConductorNombre: c2Extra.nombre                         || '',
       descripcionViaje:       tr.querySelector('.f-desc')?.value     || ''
