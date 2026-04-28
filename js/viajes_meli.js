@@ -201,7 +201,8 @@ function _detectarColumnas(headers) {
     if (map.destino   === undefined && (n.includes('destino') || n.includes('destination') || n.includes('punto de entrega') || n.includes('cod dir') || n.includes('codigo dir') || n.includes('cod. dir'))) map.destino = i;
     if (map.tractor   === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
     if (map.arrastre  === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
-    if (map.servicio  === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
+    if (map.servicio    === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
+    if (map.tipoVehiculo === undefined && !n.includes('tractor') && !n.includes('carga') && (n.includes('tipo de vehiculo') || n === 'tipo vehiculo' || n.includes('vehicle type') || n.includes('tipo de unidad'))) map.tipoVehiculo = i;
     // Conductor: requiere "nombre" + "conductor" (excluye "ID del Conductor")
     if (map.conductor === undefined && n.includes('nombre') && n.includes('conductor') && !n.includes('adicional') && !n.includes('secundario')) map.conductor = i;
     // 2do conductor: requiere "nombre" + "adicional"/"secundario"/"2do"
@@ -238,8 +239,9 @@ function _generarDesdeRows(rows) {
     const destRaw   = colMap.destino   !== undefined ? String(row[colMap.destino]   || '').trim() : '';
     const tractRaw  = colMap.tractor   !== undefined ? String(row[colMap.tractor]   || '').trim() : '';
     const arrastRaw = colMap.arrastre  !== undefined ? String(row[colMap.arrastre]  || '').trim() : '';
-    const servicio  = colMap.servicio  !== undefined ? String(row[colMap.servicio]  || '').trim() : '';
-    const condRaw   = colMap.conductor !== undefined ? String(row[colMap.conductor] || '').trim() : '';
+    const servicio     = colMap.servicio     !== undefined ? String(row[colMap.servicio]     || '').trim() : '';
+    const tipoVehiculo = colMap.tipoVehiculo !== undefined ? String(row[colMap.tipoVehiculo] || '').trim() : '';
+    const condRaw      = colMap.conductor    !== undefined ? String(row[colMap.conductor]    || '').trim() : '';
     const cond2Raw  = colMap.cond2     !== undefined ? String(row[colMap.cond2]     || '').trim() : '';
 
     const dirMatch   = _buscarDireccion(destRaw);
@@ -259,7 +261,7 @@ function _generarDesdeRows(rows) {
       dirMatch, dirRaw: destRaw,
       vehMatch, vehRaw: tractRaw,
       arrMatch, arrastRaw,
-      servicio,
+      servicio, tipoVehiculo,
       condMatch, condRaw,
       cond2Match, cond2Raw,
       provMatch
@@ -497,6 +499,8 @@ function crearFilaMeli(idx, datos) {
   tr._postInit = function() {
     if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
     onProveedorChange(idx, _provNombre);
+    if (datos.servicio) refs.ruta.setValue(datos.servicio);
+    _autoSeleccionarEtiquetaIngreso(idx, datos.servicio, datos.tipoVehiculo);
   };
 
   return tr;
@@ -663,6 +667,21 @@ function onProveedorChange(idx, prov) {
   if (refs && refs.ruta) refs.ruta.setOpciones(getRutasOpciones(prov));
 }
 
+function _autoSeleccionarEtiquetaIngreso(idx, servicio, tipoVehiculo) {
+  if (!servicio) return;
+  const etiqueta = (tipoVehiculo
+    ? servicio + ' / ' + tipoVehiculo
+    : servicio
+  ).toUpperCase();
+  const tr = document.querySelector(`#tripsTbody tr[data-idx="${idx}"]`);
+  if (tr) tr.dataset.etiquetaAutoIngreso = etiqueta;
+  const msId = 'ms-ingreso-' + idx;
+  const ms = msRefs[msId];
+  if (!ms) return;
+  const current = JSON.parse(document.getElementById(msId)?.dataset.selected || '[]');
+  if (!current.length) ms.setSeleccion([etiqueta]);
+}
+
 // ── Validación ──
 
 function validarFilas() {
@@ -690,8 +709,11 @@ function validarFilas() {
 
     const msI = document.getElementById(`ms-ingreso-${idx}`);
     const ingresoSel = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
+    const etiquetaAutoIngreso = tr.dataset.etiquetaAutoIngreso || '';
+    const efectivoIngreso = ingresoSel.length ? ingresoSel : (etiquetaAutoIngreso ? [etiquetaAutoIngreso] : []);
     const triggerI = msI?.querySelector('.ms-trigger');
-    if (triggerI) { triggerI.classList.toggle('error', !ingresoSel.length); if (!ingresoSel.length) ok = false; }
+    if (triggerI) { triggerI.classList.toggle('error', !efectivoIngreso.length); if (!efectivoIngreso.length) ok = false; }
+    else if (!efectivoIngreso.length) ok = false;
   });
   return ok;
 }
@@ -715,6 +737,8 @@ function recolectarViajes() {
     const c2Extra = refs.cond2?.getExtra() || {};
     const _despacho = tr.querySelector('.f-despacho')?.value || '';
     const _alt      = tr.querySelector('.f-alt')?.value      || '';
+    const ingresoSel = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
+    const etiquetaAutoIngreso = tr.dataset.etiquetaAutoIngreso || '';
     viajes.push({
       codigoDespacho:         _alt ? (_despacho + ' | ' + _alt) : _despacho,
       codigoAlternativo:      _alt,
@@ -727,8 +751,8 @@ function recolectarViajes() {
       empleador:              getEmpleadorDeFila(idx),
       etiquetasCosto:         msC ? JSON.parse(msC.dataset.selected || '[]') : [],
       proveedor:              refs.prov?.getValue()                  || '',
-      etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
-      rutaMaestra:            refs.ruta?.getValue()                  || '',
+      etiquetasIngreso:       ingresoSel.length ? ingresoSel : (etiquetaAutoIngreso ? [etiquetaAutoIngreso] : []),
+      rutaMaestra:            refs.ruta?.getValue() || tr.querySelector('.f-desc')?.value || '',
       conductorEmail:         cExtra.email                           || '',
       segundoConductorNombre: c2Extra.nombre                         || '',
       descripcionViaje:       tr.querySelector('.f-desc')?.value     || ''
