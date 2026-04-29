@@ -64,6 +64,11 @@ function syncSocios() {
     document.getElementById('resSocios'),
     document.getElementById('btnSyncSoc'));
 }
+function syncEsquemas() {
+  syncDatos('syncManualEsquemas', 'Esquemas',
+    document.getElementById('resEsquemas'),
+    document.getElementById('btnSyncEsq'));
+}
 
 // ── Cambiar contraseña ──
 

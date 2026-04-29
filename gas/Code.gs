@@ -18,6 +18,7 @@ function doPost(e) {
       'syncManualTripulantes': () => syncManualTripulantes(token),
       'syncManualFlota':       () => syncManualFlota(token),
       'syncManualSocios':      () => syncManualSocios(token),
+      'syncManualEsquemas':   () => syncManualEsquemas(token),
       'crearPlanDrivin':       () => crearPlanDrivin(token, data.planDatos),
       'subirExcelADrive':      () => subirExcelADrive(token, data.base64, data.nombreArchivo, data.viajes, data.planDatos),
       'crearPlanillaViajes':   () => crearPlanillaViajes(token, data.viajes, data.planDatos),

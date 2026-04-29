@@ -29,6 +29,9 @@
         <a href="viajes_meli.html" class="nav-item">
           <span>📦</span> Generar Viajes Meli
         </a>
+        <a href="viajes-generales.html" class="nav-item">
+          <span>📋</span> Viajes Generales Import.
+        </a>
         <a href="#actualizarDatos" class="nav-item" id="navActualizar" style="display:none"
            onclick="scrollToSection('actualizarDatos')">
           <span>🔄</span> Actualizar Datos
@@ -68,6 +71,10 @@
             <div class="quick-action-icon">📦</div>
             <div class="quick-action-label">Generar Viajes Meli</div>
           </a>
+          <a href="viajes-generales.html" class="quick-action">
+            <div class="quick-action-icon">📋</div>
+            <div class="quick-action-label">Viajes Generales Import.</div>
+          </a>
         </div>
 
         <!-- Actualizar datos -->
@@ -101,6 +108,13 @@
                 Actualizar
               </button>
               <div id="resSocios" class="sync-result"></div>
+            </div>
+            <div class="sync-item">
+              <div class="sync-item-label">Esquemas</div>
+              <button class="btn btn-secondary btn-sm" id="btnSyncEsq" onclick="syncEsquemas()">
+                Actualizar
+              </button>
+              <div id="resEsquemas" class="sync-result"></div>
             </div>
           </div>
         </section>

@@ -187,6 +187,97 @@ function syncManualSocios(token) {
  * @param {string} token - Token de sesión
  * @param {{ description, date, fleet_name, schema_code }} planDatos
  */
+// ─── Sincronización de Esquemas de Costos e Ingresos ─────────────────────────
+
+function syncEsquemas() {
+  const data = drivinGet_('/cost_schemas?limit=100000');
+
+  const rowsCosto   = [];
+  const rowsIngreso = [];
+
+  (Array.isArray(data) ? data : []).forEach(function(schema) {
+    (schema.cost_concepts || []).forEach(function(cc) {
+      var row = [
+        schema.id                                                              || '',
+        schema.name                                                            || '',
+        schema.cost_schema_type                                                || '',
+        schema.multi_employer != null ? schema.multi_employer                 : '',
+        schema.multi_supplier != null ? schema.multi_supplier                 : '',
+        cc.id                                                                  || '',
+        cc.name                                                                || '',
+        cc.cost              != null ? cc.cost                                : '',
+        cc.start_cost        != null ? cc.start_cost                          : '',
+        cc.days              != null ? cc.days                                : '',
+        cc.cost_concept_type_id                                                || '',
+        cc.supplier_id                                                         || '',
+        cc.employer_id                                                         || '',
+        cc.is_max            != null ? cc.is_max                              : '',
+        cc.min_range         != null ? cc.min_range                           : '',
+        cc.max_range         != null ? cc.max_range                           : '',
+        cc.cost_unit_id                                                        || '',
+        cc.factor            != null ? cc.factor                              : '',
+        cc.factor_1          != null ? cc.factor_1                            : '',
+        cc.factor_2          != null ? cc.factor_2                            : '',
+        cc.factor_3          != null ? cc.factor_3                            : '',
+        cc.factor_function                                                     || '',
+        cc.output_tag                                                          || '',
+        cc.output_tag2                                                         || '',
+        cc.output_tag3                                                         || '',
+        cc.baseline_cost     != null ? cc.baseline_cost                       : 0,
+        (cc.cost_allocation_tags || []).map(function(t) { return t.name; }).join(', '),
+        (cc.cost_vehicle_tags    || []).map(function(t) { return t.name || t; }).join(', '),
+        (cc.reason && cc.reason.id)          || '',
+        (cc.reason && cc.reason.code)        || '',
+        (cc.reason && cc.reason.description) || ''
+      ];
+      if (schema.cost_schema_type === 'cost') {
+        rowsCosto.push(row);
+      } else if (schema.cost_schema_type === 'revenue') {
+        rowsIngreso.push(row);
+      }
+    });
+  });
+
+  var headers = [
+    'schema_id','schema_name','cost_schema_type','multi_employer','multi_supplier',
+    'cost_concept_id','cost_concept_name','cost','start_cost','days',
+    'cost_concept_type','supplier','employer','is_max','min_range','max_range',
+    'cost_unit','factor','factor_1','factor_2','factor_3','factor_function',
+    'output_tag','output_tag2','output_tag3','baseline_cost',
+    'cost_allocation_tags','cost_vehicle_tags','reason_id','reason_code','reason_description'
+  ];
+
+  var tabCostos   = CONFIG.SHEETS.OTROS_DATOS.tabs.ESQUEMAS_COSTOS;
+  var tabIngresos = CONFIG.SHEETS.OTROS_DATOS.tabs.ESQUEMAS_INGRESOS;
+  var sheetId     = CONFIG.SHEETS.OTROS_DATOS.id;
+
+  sheetsClear_(sheetId, tabCostos   + '!A:AE');
+  sheetsWrite_(sheetId, tabCostos   + '!A1', [headers].concat(rowsCosto));
+  sheetsClear_(sheetId, tabIngresos + '!A:AE');
+  sheetsWrite_(sheetId, tabIngresos + '!A1', [headers].concat(rowsIngreso));
+
+  invalidarCacheDatosMaestros();
+  return { ok: true, count: rowsCosto.length + rowsIngreso.length, countCosto: rowsCosto.length, countIngreso: rowsIngreso.length };
+}
+
+function syncManualEsquemas(token) {
+  var session = validateSession(token);
+  if (!session) return { ok: false, error: 'Sesión inválida' };
+  try {
+    return syncEsquemas();
+  } catch(e) {
+    console.error('syncEsquemas error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
+// ─── Crear Plan en Driv.in ───────────────────────────────────────────────────
+
+/**
+ * Crea un plan/escenario en Driv.in.
+ * @param {string} token - Token de sesión
+ * @param {{ description, date, fleet_name, schema_code }} planDatos
+ */
 function crearPlanDrivin(token, planDatos) {
   const session = validateSession(token);
   if (!session) throw new Error('Sesión inválida o expirada');

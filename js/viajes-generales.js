@@ -1,24 +1,10 @@
-// viajes_meli.js — Carga de viajes desde Excel de Mercado Libre
+// viajes-generales.js — Carga de viajes desde plantilla Excel general
 
 let SESSION    = null;
 let planCreado = null;
 let codigoDespacho = '';
 const filaRefs = {};
 const msRefs   = {};
-
-// ── COLUMNAS ESPERADAS EN EL EXCEL MELI ──
-// Travel ID        → Código Alternativo
-// Destino          → Dirección (se intenta matchear con DATOS.direcciones)
-// Vehículo tractor → Vehículo  (se intenta matchear con DATOS.flota)
-// Vehículo de carga→ Arrastre  (se intenta matchear con DATOS.arrastres)
-// Servicio         → Descripción
-// Conductor Princ. → Conductor (se intenta matchear con DATOS.tripulantes)
-// Conductor Adic.  → 2do Conductor
-// Unidad 1         → 25000 (fijo)
-// Proveedor        → TECH PACK SRL (fijo, matchea contra socios)
-
-const PROVEEDOR_MELI_FIJO = 'TECH PACK SRL';
-const UNIDADES_MELI_FIJAS = '25000';
 
 // ── Caché localStorage ──
 
@@ -103,7 +89,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (cached) {
     window.DATOS = cached.data;
-    console.log('Datos maestros desde localStorage (caché)');
     document.getElementById('initLoader').style.display = 'none';
     document.getElementById('contenido').style.display  = 'block';
     inicializarPaso1();
@@ -163,9 +148,26 @@ function submitCrearPlan(e) {
   transicionarPaso(2);
 }
 
-// ── PASO 2 — Importar Excel de Meli ──
+// ── Plantilla descargable ──
 
-function procesarExcelMeli(file) {
+function descargarPlantillaGenerales() {
+  const headers = [
+    'Fecha', 'Unidad OP', 'Servicio', 'Cliente', 'Fletero',
+    'Vehiculo Tractor', 'Vehiculo de Carga',
+    'Nombre de Conductor 1', 'Column 15', 'Nombre de Conductor 2',
+    'Estado', 'Direccción', 'PDO', 'ID/REMITO', 'OBSERVACIONES',
+    'Codigo de Direccción de Drivin', 'Costo', 'Venta'
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
+  ws['!cols'] = headers.map(() => ({ wch: 25 }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Viajes Generales');
+  XLSX.writeFile(wb, 'Plantilla_Viajes_Generales.xlsx');
+}
+
+// ── PASO 2 — Importar Excel Generales ──
+
+function procesarExcelGenerales(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function(ev) {
@@ -175,7 +177,7 @@ function procesarExcelMeli(file) {
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       if (rows.length < 2) { alert('El archivo no contiene datos.'); return; }
-      _generarDesdeRows(rows);
+      _generarDesdeRowsGenerales(rows);
     } catch (err) {
       alert('Error al leer el Excel: ' + err.message);
     }
@@ -192,34 +194,26 @@ function _normHeader(s) {
     .trim();
 }
 
-function _detectarColumnas(headers) {
+function _detectarColumnasGenerales(headers) {
   const map = {};
-  // Primera pasada: buscar columnas con "nombre" (prioridad alta, evita "ID del Conductor")
   headers.forEach((h, i) => {
     const n = _normHeader(h);
-    if (map.altCode === undefined && (n === 'travel id' || n === 'id viaje' || n === 'id de envio' || n === 'shipment')) map.altCode = i;
-    if (map.destino   === undefined && (n.includes('destino') || n.includes('destination') || n.includes('punto de entrega') || n.includes('cod dir') || n.includes('codigo dir') || n.includes('cod. dir'))) map.destino = i;
-    if (map.tractor   === undefined && (n.includes('tractor') || n.includes('vehiculo tractor') || n.includes('unidad tractora') || n.includes('patente tractor') || n.includes('camion'))) map.tractor = i;
-    if (map.arrastre  === undefined && ((n.includes('carga') && !n.includes('unidades de carga') && !n.includes('carga horaria')) || n.includes('arrastre') || n.includes('semirremolque') || n.includes('remolque') || n.includes('trailer'))) map.arrastre = i;
-    if (map.servicio    === undefined && (n.includes('servicio') || n.includes('service') || n === 'descripcion' || n.includes('tipo de servicio'))) map.servicio = i;
-    if (map.tipoVehiculo === undefined && !n.includes('tractor') && !n.includes('carga') && (n.includes('tipo de vehiculo') || n === 'tipo vehiculo' || n.includes('vehicle type') || n.includes('tipo de unidad'))) map.tipoVehiculo = i;
-    // Conductor: requiere "nombre" + "conductor" (excluye "ID del Conductor")
-    if (map.conductor === undefined && n.includes('nombre') && n.includes('conductor') && !n.includes('adicional') && !n.includes('secundario')) map.conductor = i;
-    // 2do conductor: requiere "nombre" + "adicional"/"secundario"/"2do"
-    if (map.cond2     === undefined && n.includes('nombre') && n.includes('conductor') && (n.includes('2') || n.includes('2') || n.includes('2do'))) map.cond2 = i;
-  });
-  // Segunda pasada: fallback sin "nombre" (solo si no se encontró en la primera)
-  headers.forEach((h, i) => {
-    const n = _normHeader(h);
-    if (map.conductor === undefined && (n === 'conductor' || (n.includes('conductor') && n.includes('principal') && !n.includes('id')))) map.conductor = i;
-    if (map.cond2     === undefined && n.includes('conductor') && (n.includes('adicional') || n.includes('2') || n.includes('2do')) && !n.includes('id')) map.cond2 = i;
+    if (map.altCode     === undefined && (n === 'unidad op' || n.includes('unidad op'))) map.altCode = i;
+    if (map.servicio    === undefined && n === 'servicio') map.servicio = i;
+    if (map.cliente     === undefined && (n === 'cliente' || n.includes('cliente'))) map.cliente = i;
+    if (map.tractor     === undefined && (n === 'vehiculo tractor' || (n.includes('vehiculo') && n.includes('tractor')))) map.tractor = i;
+    if (map.arrastre    === undefined && (n === 'vehiculo de carga' || (n.includes('vehiculo') && n.includes('carga')))) map.arrastre = i;
+    if (map.conductor   === undefined && (n === 'nombre de conductor 1' || n.includes('conductor 1'))) map.conductor = i;
+    if (map.cond2       === undefined && (n === 'nombre de conductor 2' || n.includes('conductor 2'))) map.cond2 = i;
+    if (map.codDir      === undefined && (n.includes('codigo de direcccion de drivin') || n.includes('codigo dir drivin') || n.includes('codigo direcccion') || n.includes('cod dir drivin'))) map.codDir = i;
+    if (map.descripcion === undefined && (n === 'observaciones' || n.includes('observacion'))) map.descripcion = i;
   });
   return map;
 }
 
-function _generarDesdeRows(rows) {
+function _generarDesdeRowsGenerales(rows) {
   const headers  = rows[0];
-  const colMap   = _detectarColumnas(headers);
+  const colMap   = _detectarColumnasGenerales(headers);
   const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
 
   if (!dataRows.length) { alert('No hay filas con datos en el archivo.'); return; }
@@ -235,38 +229,41 @@ function _generarDesdeRows(rows) {
   let noValidados = 0;
 
   dataRows.forEach((row, i) => {
-    const altCode   = colMap.altCode   !== undefined ? String(row[colMap.altCode]   || '').trim() : '';
-    const destRaw   = colMap.destino   !== undefined ? String(row[colMap.destino]   || '').trim() : '';
-    const tractRaw  = colMap.tractor   !== undefined ? String(row[colMap.tractor]   || '').trim() : '';
-    const arrastRaw = colMap.arrastre  !== undefined ? String(row[colMap.arrastre]  || '').trim() : '';
-    const servicio     = colMap.servicio     !== undefined ? String(row[colMap.servicio]     || '').trim() : '';
-    const tipoVehiculo = colMap.tipoVehiculo !== undefined ? String(row[colMap.tipoVehiculo] || '').trim() : '';
-    const condRaw      = colMap.conductor    !== undefined ? String(row[colMap.conductor]    || '').trim() : '';
-    const cond2Raw  = colMap.cond2     !== undefined ? String(row[colMap.cond2]     || '').trim() : '';
+    const altCode     = colMap.altCode     !== undefined ? String(row[colMap.altCode]     || '').trim() : '';
+    const servicio    = colMap.servicio    !== undefined ? String(row[colMap.servicio]    || '').trim() : '';
+    const clienteRaw  = colMap.cliente     !== undefined ? String(row[colMap.cliente]     || '').trim() : '';
+    const tractRaw    = colMap.tractor     !== undefined ? String(row[colMap.tractor]     || '').trim() : '';
+    const arrastRaw   = colMap.arrastre    !== undefined ? String(row[colMap.arrastre]    || '').trim() : '';
+    const condRaw     = colMap.conductor   !== undefined ? String(row[colMap.conductor]   || '').trim() : '';
+    const cond2Raw    = colMap.cond2       !== undefined ? String(row[colMap.cond2]       || '').trim() : '';
+    const codDirRaw   = colMap.codDir      !== undefined ? String(row[colMap.codDir]      || '').trim() : '';
+    const descripcion = colMap.descripcion !== undefined ? String(row[colMap.descripcion] || '').trim() : '';
 
-    const dirMatch   = _buscarDireccion(destRaw);
+    const dirMatch   = _buscarDireccion(codDirRaw);
     const vehMatch   = _buscarVehiculo(tractRaw);
     const arrMatch   = _buscarArrastre(arrastRaw);
     const condMatch  = _buscarConductor(condRaw);
     const cond2Match = _buscarConductor(cond2Raw);
-    const provMatch  = _buscarProveedor(PROVEEDOR_MELI_FIJO);
+    const provMatch  = _buscarProveedor(clienteRaw);
 
-    if (!dirMatch  && destRaw)  noValidados++;
-    if (!vehMatch  && tractRaw) noValidados++;
-    if (!condMatch && condRaw)  noValidados++;
+    if (!dirMatch  && codDirRaw)  noValidados++;
+    if (!vehMatch  && tractRaw)   noValidados++;
+    if (!condMatch && condRaw)    noValidados++;
+    if (!provMatch && clienteRaw) noValidados++;
 
     const datos = {
       codigoDespacho: codigoDespacho + '-' + (i + 1),
-      altCode, unidades1: UNIDADES_MELI_FIJAS,
-      dirMatch, dirRaw: destRaw,
+      altCode, unidades1: '',
+      dirMatch, dirRaw: codDirRaw,
       vehMatch, vehRaw: tractRaw,
       arrMatch, arrastRaw,
-      servicio, tipoVehiculo,
+      servicio,
+      clienteRaw, provMatch,
       condMatch, condRaw,
       cond2Match, cond2Raw,
-      provMatch
+      descripcion
     };
-    const tr = crearFilaMeli(i, datos);
+    const tr = crearFilaGenerales(i, datos);
     tbody.appendChild(tr);
     tr._postInit();
   });
@@ -275,7 +272,7 @@ function _generarDesdeRows(rows) {
   document.getElementById('btnCargarViajes').style.display = 'inline-flex';
   document.getElementById('validacionError').style.display = 'none';
 
-  const alerta = document.getElementById('meliAlertaNoValidados');
+  const alerta = document.getElementById('generalesAlertaNoValidados');
   if (noValidados > 0) {
     alerta.textContent = `${noValidados} campo(s) con valores no encontrados en el sistema (marcados en naranja). Podés corregirlos antes de cargar.`;
     alerta.style.display = 'block';
@@ -287,8 +284,6 @@ function _generarDesdeRows(rows) {
   if (uploadBox) {
     uploadBox.style.borderColor = '#01feff';
     uploadBox.style.background  = 'rgba(1,254,255,0.04)';
-    const label = uploadBox.querySelector('div:nth-child(2)');
-    if (label) label.textContent = `${dataRows.length} fila(s) importadas — ${uploadBox.querySelector('div:nth-child(2)')?.textContent}`;
   }
 }
 
@@ -350,9 +345,9 @@ function getRutasOpciones(filtroProveedor) {
   return all.filter(r => r.rutaProv.toLowerCase() === norm || r.rutaProv === '');
 }
 
-// ── Crear fila desde datos Meli ──
+// ── Crear fila desde datos Generales ──
 
-function crearFilaMeli(idx, datos) {
+function crearFilaGenerales(idx, datos) {
   const tr = document.createElement('tr');
   tr.dataset.idx = idx;
   tr.innerHTML = `
@@ -372,7 +367,7 @@ function crearFilaMeli(idx, datos) {
     <td class="col-ruta"      id="td-ruta-${idx}"></td>
     <td class="col-conductor" id="td-cond-${idx}"></td>
     <td class="col-conductor" id="td-cond2-${idx}"></td>
-    <td class="col-descripcion"><input type="text" class="f-desc" value="${escapeHtml(datos.servicio)}" placeholder="Opcional"></td>
+    <td class="col-descripcion"><input type="text" class="f-desc" value="${escapeHtml(datos.descripcion)}" placeholder="Opcional"></td>
   `;
 
   const refs = {};
@@ -461,7 +456,6 @@ function crearFilaMeli(idx, datos) {
   tr.querySelector(`#td-cond-${idx}`).appendChild(refs.cond.wrap);
   tr.querySelector(`#td-cond2-${idx}`).appendChild(refs.cond2.wrap);
 
-  // Pre-fill valores desde Excel (encontrado → normal, no encontrado → naranja)
   if (datos.dirMatch) {
     refs.dir.setValue(datos.dirMatch.code, '[' + datos.dirMatch.code + '] — ' + datos.dirMatch.name);
   } else if (datos.dirRaw) {
@@ -480,8 +474,8 @@ function crearFilaMeli(idx, datos) {
     refs.arr.setValue(datos.arrastRaw);
   }
 
-  const _provNombre = datos.provMatch ? datos.provMatch.name : PROVEEDOR_MELI_FIJO;
-  refs.prov.setValue(_provNombre);
+  const _provNombre = datos.provMatch ? datos.provMatch.name : (datos.clienteRaw || '');
+  if (_provNombre) refs.prov.setValue(_provNombre);
 
   if (datos.condMatch) {
     refs.cond.setValue(datos.condMatch.nombre_completo);
@@ -498,9 +492,8 @@ function crearFilaMeli(idx, datos) {
   // _postInit: llamar DESPUÉS de que el tr esté en el DOM
   tr._postInit = function() {
     if (datos.vehMatch) onVehiculoChange(idx, datos.vehMatch.code);
-    onProveedorChange(idx, _provNombre);
+    if (_provNombre) onProveedorChange(idx, _provNombre);
     if (datos.servicio) refs.ruta.setValue(datos.servicio);
-    _autoSeleccionarEtiquetaIngreso(idx, datos.servicio, datos.tipoVehiculo);
   };
 
   return tr;
@@ -516,7 +509,7 @@ function eliminarFila(btn) {
   if (!document.querySelector('#tripsTbody tr')) {
     document.getElementById('tablaSection').style.display    = 'none';
     document.getElementById('btnCargarViajes').style.display = 'none';
-    document.getElementById('meliAlertaNoValidados').style.display = 'none';
+    document.getElementById('generalesAlertaNoValidados').style.display = 'none';
   }
 }
 
@@ -555,7 +548,7 @@ function getEmpleadorDeVehiculo(code) {
 }
 
 function actualizarEmpleador(idx, code) {
-  const td  = document.getElementById('td-emp-' + idx);
+  const td = document.getElementById('td-emp-' + idx);
   if (!td) return;
   const emp = getEmpleadorDeVehiculo(code);
   td.dataset.empleador = emp || '';
@@ -572,28 +565,6 @@ function getEmpleadorDeFila(idx) {
   return document.getElementById('td-emp-' + idx)?.dataset.empleador || '';
 }
 
-// ── Vigencia ──
-
-function estaVigente(vigenciaDesde, vigenciaHasta) {
-  if (!vigenciaDesde || !vigenciaHasta) return false;
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const desde = parsearFecha(vigenciaDesde);
-  const hasta  = parsearFecha(vigenciaHasta);
-  if (!desde || !hasta) return false;
-  return hoy >= desde && hoy <= hasta;
-}
-
-function parsearFecha(valor) {
-  if (!valor) return null;
-  const str = String(valor).trim();
-  const m1 = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m1) return new Date(+m1[3], +m1[2] - 1, +m1[1]);
-  const m2 = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3]);
-  const d = new Date(str);
-  return isNaN(d.getTime()) ? null : d;
-}
-
 // ── Etiquetas Costo ──
 
 function actualizarEtiquetasCosto(idx, vehiculoCode) {
@@ -605,7 +576,7 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados para este empleador</span>';
     return;
   }
-  const norm  = emp.trim().toLowerCase();
+  const norm = emp.trim().toLowerCase();
   const etiquetasCosto = [...new Set(
     (window.DATOS.esquemasCostos || []).slice(1)
       .filter(r => {
@@ -629,7 +600,7 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
     mensajeVacio: 'Sin costos cargados para este empleador',
     onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
   });
-  ms.contenedor.id             = msId;
+  ms.contenedor.id              = msId;
   ms.contenedor.dataset.selected = '[]';
   msRefs[msId] = ms;
   td.appendChild(ms.contenedor);
@@ -645,7 +616,7 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Seleccioná un proveedor primero</span>';
     return;
   }
-  const norm  = proveedorNombre.trim().toLowerCase();
+  const norm = proveedorNombre.trim().toLowerCase();
   const etiquetasIngreso = [...new Set(
     (window.DATOS.esquemasIngresos || []).slice(1)
       .filter(r => String(r[1] || '').trim().toLowerCase() === norm)
@@ -665,7 +636,7 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
     mensajeVacio: 'Sin tarifas cargadas para este proveedor',
     onChange:     (vals) => { ms.contenedor.dataset.selected = JSON.stringify(vals); }
   });
-  ms.contenedor.id             = msId;
+  ms.contenedor.id              = msId;
   ms.contenedor.dataset.selected = '[]';
   msRefs[msId] = ms;
   td.appendChild(ms.contenedor);
@@ -675,21 +646,6 @@ function onProveedorChange(idx, prov) {
   actualizarEtiquetasIngreso(idx, prov);
   const refs = filaRefs[idx];
   if (refs && refs.ruta) refs.ruta.setOpciones(getRutasOpciones(prov));
-}
-
-function _autoSeleccionarEtiquetaIngreso(idx, servicio, tipoVehiculo) {
-  if (!servicio) return;
-  const etiqueta = (tipoVehiculo
-    ? servicio + ' / ' + tipoVehiculo
-    : servicio
-  ).toUpperCase();
-  const tr = document.querySelector(`#tripsTbody tr[data-idx="${idx}"]`);
-  if (tr) tr.dataset.etiquetaAutoIngreso = etiqueta;
-  const msId = 'ms-ingreso-' + idx;
-  const ms = msRefs[msId];
-  if (!ms) return;
-  const current = JSON.parse(document.getElementById(msId)?.dataset.selected || '[]');
-  if (!current.length) ms.setSeleccion([etiqueta]);
 }
 
 // ── Validación ──
@@ -719,11 +675,8 @@ function validarFilas() {
 
     const msI = document.getElementById(`ms-ingreso-${idx}`);
     const ingresoSel = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
-    const etiquetaAutoIngreso = tr.dataset.etiquetaAutoIngreso || '';
-    const efectivoIngreso = ingresoSel.length ? ingresoSel : (etiquetaAutoIngreso ? [etiquetaAutoIngreso] : []);
     const triggerI = msI?.querySelector('.ms-trigger');
-    if (triggerI) { triggerI.classList.toggle('error', !efectivoIngreso.length); if (!efectivoIngreso.length) ok = false; }
-    else if (!efectivoIngreso.length) ok = false;
+    if (triggerI) { triggerI.classList.toggle('error', !ingresoSel.length); if (!ingresoSel.length) ok = false; }
   });
   return ok;
 }
@@ -747,8 +700,6 @@ function recolectarViajes() {
     const c2Extra = refs.cond2?.getExtra() || {};
     const _despacho = tr.querySelector('.f-despacho')?.value || '';
     const _alt      = tr.querySelector('.f-alt')?.value      || '';
-    const ingresoSel = msI ? JSON.parse(msI.dataset.selected || '[]') : [];
-    const etiquetaAutoIngreso = tr.dataset.etiquetaAutoIngreso || '';
     viajes.push({
       codigoDespacho:         _alt ? (_despacho + ' | ' + _alt) : _despacho,
       codigoAlternativo:      _alt,
@@ -761,8 +712,8 @@ function recolectarViajes() {
       empleador:              getEmpleadorDeFila(idx),
       etiquetasCosto:         msC ? JSON.parse(msC.dataset.selected || '[]') : [],
       proveedor:              refs.prov?.getValue()                  || '',
-      etiquetasIngreso:       ingresoSel.length ? ingresoSel : (etiquetaAutoIngreso ? [etiquetaAutoIngreso] : []),
-      rutaMaestra:            refs.ruta?.getValue() || tr.querySelector('.f-desc')?.value || '',
+      etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
+      rutaMaestra:            refs.ruta?.getValue()                  || '',
       conductorEmail:         cExtra.email                           || '',
       segundoConductorNombre: c2Extra.nombre                         || '',
       descripcionViaje:       tr.querySelector('.f-desc')?.value     || ''
@@ -836,9 +787,9 @@ function nuevoPlan() {
   document.getElementById('tablaSection').style.display    = 'none';
   document.getElementById('btnCargarViajes').style.display = 'none';
   document.getElementById('pasoExito').style.display       = 'none';
-  document.getElementById('meliAlertaNoValidados').style.display = 'none';
+  document.getElementById('generalesAlertaNoValidados').style.display = 'none';
   document.getElementById('formPlan').reset();
-  document.getElementById('errorPlan').textContent         = '';
+  document.getElementById('errorPlan').textContent = '';
   const uploadBox = document.getElementById('uploadBox');
   if (uploadBox) {
     uploadBox.style.borderColor = '';

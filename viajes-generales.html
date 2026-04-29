@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Viajes Meli — Troncales</title>
+  <title>Viajes Generales Import. — Troncales</title>
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/viajes.css">
 </head>
@@ -99,7 +99,7 @@
             <div class="step-divider"></div>
             <div class="step">
               <div class="step-num">2</div>
-              <span>Importar Meli</span>
+              <span>Importar Excel</span>
             </div>
             <div class="step-divider"></div>
             <div class="step">
@@ -111,12 +111,12 @@
           <!-- PASO 1 — Datos del Plan -->
           <div class="paso active" id="paso1">
             <div class="card">
-              <h2 class="card-title">Paso 1 — Datos del Plan (Meli)</h2>
+              <h2 class="card-title">Paso 1 — Datos del Plan (Generales)</h2>
               <form id="formPlan">
                 <div class="plan-grid">
                   <div class="form-group">
                     <label for="nombrePlan">Nombre del plan *</label>
-                    <input type="text" id="nombrePlan" required placeholder="Ej: Plan Meli Mendoza 04/2026">
+                    <input type="text" id="nombrePlan" required placeholder="Ej: Plan Generales 04/2026">
                   </div>
                   <div class="form-group">
                     <label for="fechaViaje">Fecha del viaje *</label>
@@ -142,10 +142,10 @@
             </div>
           </div>
 
-          <!-- PASO 2 — Importar Excel Meli -->
+          <!-- PASO 2 — Importar Excel Generales -->
           <div class="paso" id="paso2">
             <div class="card">
-              <h2 class="card-title">Paso 2 — Importar Excel de Mercado Libre</h2>
+              <h2 class="card-title">Paso 2 — Importar Excel de Viajes Generales</h2>
 
               <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:var(--color-text-muted);">
                 <span>Plan: <strong style="color:var(--color-white)" id="resumenNombrePlan"></strong></span>
@@ -153,15 +153,21 @@
                 <span>Esquema: <strong style="color:var(--color-white)" id="resumenEsquema"></strong></span>
               </div>
 
-              <!-- Upload zone -->
+              <!-- Botón plantilla + Upload zone -->
+              <div style="margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+                <button class="btn btn-outline btn-sm" onclick="descargarPlantillaGenerales()">
+                  ⬇ Descargar Plantilla
+                </button>
+                <span style="font-size:12px;color:var(--color-text-muted)">Completá la plantilla y luego importala aquí.</span>
+              </div>
               <div style="margin-bottom:16px">
-                <div class="meli-upload-box" id="uploadBox" onclick="document.getElementById('inputMeli').click()">
+                <div class="meli-upload-box" id="uploadBox" onclick="document.getElementById('inputGenerales').click()">
                   <div style="font-size:32px;margin-bottom:8px">📥</div>
-                  <div style="font-weight:600;margin-bottom:4px">Subir Excel de Meli</div>
+                  <div style="font-weight:600;margin-bottom:4px">Subir Excel de Viajes Generales</div>
                   <div style="font-size:12px;color:var(--color-text-muted)">Hacé clic o arrastrá el archivo .xlsx</div>
                 </div>
-                <input type="file" id="inputMeli" accept=".xlsx,.xls" style="display:none"
-                       onchange="procesarExcelMeli(this.files[0]); this.value=''">
+                <input type="file" id="inputGenerales" accept=".xlsx,.xls" style="display:none"
+                       onchange="procesarExcelGenerales(this.files[0]); this.value=''">
               </div>
 
               <!-- Sync panel Paso 2 -->
@@ -218,7 +224,7 @@
 
               <!-- Tabla dinámica -->
               <div id="tablaSection" style="display:none">
-                <div id="meliAlertaNoValidados" class="error-msg" style="display:none;margin-bottom:10px;"></div>
+                <div id="generalesAlertaNoValidados" class="error-msg" style="display:none;margin-bottom:10px;"></div>
                 <div class="trips-table-wrap">
                   <table class="trips-table">
                     <thead>
@@ -234,9 +240,9 @@
                         <th class="col-arrastre">Arrastre</th>
                         <th class="col-empleador">Empleador</th>
                         <th class="col-etiqueta">Etiq. Costo</th>
-                        <th class="col-proveedor">Proveedor</th>
+                        <th class="col-proveedor required">Proveedor</th>
                         <th class="col-etiqueta">Etiq. Ingreso</th>
-                        <th class="col-ruta">Ruta Maestra</th>
+                        <th class="col-ruta required">Ruta Maestra</th>
                         <th class="col-conductor required">Conductor</th>
                         <th class="col-conductor">2do Conductor</th>
                         <th class="col-descripcion">Descripción</th>
@@ -271,7 +277,7 @@
             <div class="card">
               <div class="success-panel">
                 <div class="success-icon">✅</div>
-                <h2>¡Viajes Meli cargados correctamente!</h2>
+                <h2>¡Viajes Generales cargados correctamente!</h2>
                 <p>La planilla fue generada y guardada en Google Drive.</p>
                 <div class="success-actions">
                   <a id="successFileUrl" href="#" target="_blank" class="btn btn-primary">
@@ -425,6 +431,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="js/api.js"></script>
   <script src="js/componentes.js"></script>
-  <script src="js/viajes_meli.js"></script>
+  <script src="js/viajes-generales.js"></script>
 </body>
 </html>

@@ -79,6 +79,14 @@
                       onclick="syncViajesDatos('syncManualSocios','badgeSyncSoc','btnSyncVSoc')">↻</button>
                   </div>
                 </div>
+                <div class="sync-inline-item">
+                  <span class="sync-inline-label">Esquemas</span>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="sync-inline-badge" id="badgeSyncEsq"></span>
+                    <button class="btn btn-secondary btn-sm" id="btnSyncVEsq"
+                      onclick="syncViajesDatos('syncManualEsquemas','badgeSyncEsq','btnSyncVEsq')">↻</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -192,6 +200,14 @@
                         <span class="sync-inline-badge" id="badgeSyncSoc2"></span>
                         <button class="btn btn-secondary btn-sm" id="btnSyncVSoc2"
                           onclick="syncViajesDatos('syncManualSocios','badgeSyncSoc2','btnSyncVSoc2')">↻</button>
+                      </div>
+                    </div>
+                    <div class="sync-inline-item">
+                      <span class="sync-inline-label">Esquemas</span>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="sync-inline-badge" id="badgeSyncEsq2"></span>
+                        <button class="btn btn-secondary btn-sm" id="btnSyncVEsq2"
+                          onclick="syncViajesDatos('syncManualEsquemas','badgeSyncEsq2','btnSyncVEsq2')">↻</button>
                       </div>
                     </div>
                   </div>
@@ -325,6 +341,7 @@
       <a href="dashboard.html" class="sidebar-item">← Dashboard</a>
       <a href="viajes.html" class="sidebar-item">🚛 Generar Viajes</a>
       <a href="viajes_meli.html" class="sidebar-item">📦 Generar Viajes Meli</a>
+      <a href="viajes-generales.html" class="sidebar-item">📋 Viajes Generales Import.</a>
       <div class="sidebar-divider"></div>
       <div id="sbSyncItems" style="display:none">
         <button class="sidebar-item" onclick="toggleSidebarSync()" style="justify-content:space-between;width:100%">
@@ -354,6 +371,12 @@
             <div><span class="sidebar-sync-badge" id="sbBadgeSoc"></span>
               <button class="btn btn-secondary btn-sm" id="sbBtnSoc"
                 onclick="syncViajesDatos('syncManualSocios','sbBadgeSoc','sbBtnSoc')">↻</button></div>
+          </div>
+          <div class="sidebar-sync-row">
+            <span class="sidebar-sync-label">Esquemas</span>
+            <div><span class="sidebar-sync-badge" id="sbBadgeEsq"></span>
+              <button class="btn btn-secondary btn-sm" id="sbBtnEsq"
+                onclick="syncViajesDatos('syncManualEsquemas','sbBadgeEsq','sbBtnEsq')">↻</button></div>
           </div>
         </div>
         <div class="sidebar-divider"></div>

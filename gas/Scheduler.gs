@@ -29,6 +29,7 @@ function dailySync() {
   try { syncTripulantes(); } catch(e) { errores.push('Tripulantes: ' + e.message); }
   try { syncFlota();       } catch(e) { errores.push('Flota: ' + e.message); }
   try { syncSocios();      } catch(e) { errores.push('Socios: ' + e.message); }
+  try { syncEsquemas();   } catch(e) { errores.push('Esquemas: ' + e.message); }
   if (errores.length > 0) {
     console.error('Errores en dailySync: ' + errores.join(' | '));
   } else {

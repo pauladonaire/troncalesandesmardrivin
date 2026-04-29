@@ -663,10 +663,17 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
     return;
   }
   const norm  = emp.trim().toLowerCase();
-  const items = (window.DATOS.esquemasCostos || []).slice(1)
-    .filter(r => String(r[12] || '').trim().toLowerCase() === norm)
-    .map(r => ({ etiqueta: String(r[26] || '').trim(), vigenciaDesde: r[22] || '', vigenciaHasta: r[23] || '' }))
-    .filter(e => e.etiqueta !== '');
+  const etiquetasCosto = [...new Set(
+    (window.DATOS.esquemasCostos || []).slice(1)
+      .filter(r => {
+        const schemaName = String(r[1]  || '').trim().toLowerCase();
+        const employer   = String(r[12] || '').trim().toLowerCase();
+        return schemaName === norm || employer === norm;
+      })
+      .map(r => String(r[26] || '').trim())
+      .filter(e => e !== '')
+  )];
+  const items = etiquetasCosto.map(e => ({ etiqueta: e, vigenciaDesde: '', vigenciaHasta: '' }));
   if (!items.length) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados para este empleador</span>';
     return;
@@ -696,10 +703,13 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
     return;
   }
   const norm  = proveedorNombre.trim().toLowerCase();
-  const items = (window.DATOS.esquemasIngresos || []).slice(1)
-    .filter(r => String(r[11] || '').trim().toLowerCase() === norm)
-    .map(r => ({ etiqueta: String(r[26] || '').trim(), vigenciaDesde: r[22] || '', vigenciaHasta: r[23] || '' }))
-    .filter(e => e.etiqueta !== '');
+  const etiquetasIngreso = [...new Set(
+    (window.DATOS.esquemasIngresos || []).slice(1)
+      .filter(r => String(r[1] || '').trim().toLowerCase() === norm)
+      .map(r => String(r[26] || '').trim())
+      .filter(e => e !== '')
+  )];
+  const items = etiquetasIngreso.map(e => ({ etiqueta: e, vigenciaDesde: '', vigenciaHasta: '' }));
   if (!items.length) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin tarifas cargadas para este proveedor</span>';
     return;
