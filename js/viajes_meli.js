@@ -649,7 +649,7 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
   const etiquetasIngreso = [...new Set(
     (window.DATOS.esquemasIngresos || []).slice(1)
       .filter(r => String(r[1] || '').trim().toLowerCase() === norm)
-      .map(r => String(r[26] || '').trim())
+      .map(r => String(r[26] || '').trim().toUpperCase())
       .filter(e => e !== '')
   )];
   const items = etiquetasIngreso.map(e => ({ etiqueta: e, vigenciaDesde: '', vigenciaHasta: '' }));
