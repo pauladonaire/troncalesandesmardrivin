@@ -289,9 +289,32 @@
   background: var(--color-surface);
   border: 1px solid var(--color-primary);
   border-radius: 8px;
-  max-height: 240px;
-  overflow-y: auto;
+  max-height: 280px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ms-busqueda {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--color-background);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-white);
+  font-size: 13px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.ms-busqueda:focus { outline: none; border-bottom-color: var(--color-primary); }
+.ms-busqueda::placeholder { color: var(--color-text-muted); }
+
+.ms-lista {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
 }
 
 .ms-item {
@@ -336,10 +359,10 @@
   font-style: italic;
 }
 
-.ms-panel::-webkit-scrollbar { width: 6px; }
-.ms-panel::-webkit-scrollbar-track { background: var(--color-background); }
-.ms-panel::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
-.ms-panel::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
+.ms-lista::-webkit-scrollbar { width: 6px; }
+.ms-lista::-webkit-scrollbar-track { background: var(--color-background); }
+.ms-lista::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+.ms-lista::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
 
 /* Vigencia vencida */
 .ms-item-texto--vencida { color: var(--color-danger); }

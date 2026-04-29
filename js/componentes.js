@@ -194,6 +194,17 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
   panel.style.display  = 'none';
   document.body.appendChild(panel);
 
+  const inputFiltro = document.createElement('input');
+  inputFiltro.type         = 'text';
+  inputFiltro.className    = 'ms-busqueda';
+  inputFiltro.placeholder  = 'Buscar...';
+  inputFiltro.autocomplete = 'off';
+  panel.appendChild(inputFiltro);
+
+  const listaItems = document.createElement('div');
+  listaItems.className = 'ms-lista';
+  panel.appendChild(listaItems);
+
   function renderPills() {
     pillsDiv.innerHTML = '';
     seleccionadas.forEach(val => {
@@ -212,7 +223,7 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
         e.stopPropagation();
         seleccionadas = seleccionadas.filter(s => s !== val);
         renderPills();
-        renderPanel();
+        renderPanel(inputFiltro.value);
         onChange([...seleccionadas]);
       });
       pill.appendChild(texto);
@@ -222,16 +233,21 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
     trigger.textContent = seleccionadas.length === 0 ? placeholder : seleccionadas.length + ' seleccionada(s)';
   }
 
-  function renderPanel() {
-    panel.innerHTML = '';
-    if (opcionesActuales.length === 0) {
+  function renderPanel(filtro) {
+    listaItems.innerHTML = '';
+    const norm = (filtro || '').trim().toLowerCase();
+    const filtradas = norm
+      ? opcionesActuales.filter(o => getEtiqueta(o).toLowerCase().includes(norm))
+      : opcionesActuales;
+
+    if (filtradas.length === 0) {
       const msg = document.createElement('div');
       msg.className   = 'ms-vacio';
-      msg.textContent = mensajeVacio;
-      panel.appendChild(msg);
+      msg.textContent = opcionesActuales.length === 0 ? mensajeVacio : 'Sin resultados para "' + filtro + '"';
+      listaItems.appendChild(msg);
       return;
     }
-    opcionesActuales.forEach(opcion => {
+    filtradas.forEach(opcion => {
       const etiqueta = getEtiqueta(opcion);
       const vigente  = getVigente(opcion);
       const item     = document.createElement('label');
@@ -259,7 +275,7 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       labelTexto.style.cssText = 'flex:1;word-break:break-word;white-space:normal;line-height:1.4;';
       item.appendChild(checkbox);
       item.appendChild(labelTexto);
-      panel.appendChild(item);
+      listaItems.appendChild(item);
     });
   }
 
@@ -273,9 +289,11 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
   }
 
   function abrir() {
-    renderPanel();
+    inputFiltro.value = '';
+    renderPanel('');
     posicionar();
-    panel.style.display = 'block';
+    panel.style.display = 'flex';
+    inputFiltro.focus();
   }
 
   function cerrar() {
@@ -286,6 +304,8 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
     e.stopPropagation();
     if (panel.style.display === 'none') { abrir(); } else { cerrar(); }
   });
+
+  inputFiltro.addEventListener('input', () => renderPanel(inputFiltro.value));
 
   document.addEventListener('click', function(e) {
     if (!contenedor.contains(e.target) && !panel.contains(e.target)) cerrar();
@@ -304,7 +324,7 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       opcionesActuales = [...nuevasOpciones];
       seleccionadas    = seleccionadas.filter(s => opcionesActuales.some(o => getEtiqueta(o) === s));
       renderPills();
-      if (panel.style.display !== 'none') renderPanel();
+      if (panel.style.display !== 'none') renderPanel(inputFiltro.value);
     },
     setSeleccion: function(vals) {
       seleccionadas = vals.filter(v => opcionesActuales.some(o => getEtiqueta(o) === v));

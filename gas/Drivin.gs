@@ -190,7 +190,23 @@ function syncManualSocios(token) {
 // ─── Sincronización de Esquemas de Costos e Ingresos ─────────────────────────
 
 function syncEsquemas() {
-  const data = drivinGet_('/cost_schemas?limit=100000');
+  const url  = CONFIG.DRIVIN.BASE_URL + '/cost_schemas?limit=100000';
+  const resp = UrlFetchApp.fetch(url, {
+    headers: { 'X-API-KEY': CONFIG.DRIVIN.API_KEY },
+    muteHttpExceptions: true
+  });
+  const code = resp.getResponseCode();
+  const json = JSON.parse(resp.getContentText());
+  if (code !== 200) {
+    throw new Error('Driv.in API error en /cost_schemas: HTTP ' + code + ' - ' + resp.getContentText());
+  }
+  const data = json.all_cost_schemas || json.cost_schemas || json.response || [];
+
+  // Lookup maps id → nombre para supplier y employer
+  const supplierMap = {};
+  (json.suppliers || []).forEach(function(s) { supplierMap[s.id] = s.name || ''; });
+  const employerMap = {};
+  (json.employers || []).forEach(function(e) { employerMap[e.id] = e.name || ''; });
 
   const rowsCosto   = [];
   const rowsIngreso = [];
@@ -209,8 +225,8 @@ function syncEsquemas() {
         cc.start_cost        != null ? cc.start_cost                          : '',
         cc.days              != null ? cc.days                                : '',
         cc.cost_concept_type_id                                                || '',
-        cc.supplier_id                                                         || '',
-        cc.employer_id                                                         || '',
+        cc.supplier_id != null ? (supplierMap[cc.supplier_id] || String(cc.supplier_id)) : '',
+        cc.employer_id != null ? (employerMap[cc.employer_id] || String(cc.employer_id)) : '',
         cc.is_max            != null ? cc.is_max                              : '',
         cc.min_range         != null ? cc.min_range                           : '',
         cc.max_range         != null ? cc.max_range                           : '',
@@ -241,7 +257,7 @@ function syncEsquemas() {
   var headers = [
     'schema_id','schema_name','cost_schema_type','multi_employer','multi_supplier',
     'cost_concept_id','cost_concept_name','cost','start_cost','days',
-    'cost_concept_type','supplier','employer','is_max','min_range','max_range',
+    'cost_concept_type','supplier_name','employer_name','is_max','min_range','max_range',
     'cost_unit','factor','factor_1','factor_2','factor_3','factor_function',
     'output_tag','output_tag2','output_tag3','baseline_cost',
     'cost_allocation_tags','cost_vehicle_tags','reason_id','reason_code','reason_description'
