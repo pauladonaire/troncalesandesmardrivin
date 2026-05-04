@@ -619,7 +619,11 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
   const norm = proveedorNombre.trim().toLowerCase();
   const etiquetasIngreso = [...new Set(
     (window.DATOS.esquemasIngresos || []).slice(1)
-      .filter(r => String(r[1] || '').trim().toLowerCase() === norm)
+      .filter(r => {
+        const schemaName   = String(r[1]  || '').trim().toLowerCase();
+        const supplierName = String(r[11] || '').trim().toLowerCase();
+        return schemaName === norm || supplierName === norm;
+      })
       .map(r => String(r[26] || '').trim())
       .filter(e => e !== '')
   )];
