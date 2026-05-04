@@ -153,7 +153,7 @@ function inicializarPaso1() {
   if (sbRutas)        sbRutas.style.display        = 'flex';
   if (sbArrastres)    sbArrastres.style.display    = 'flex';
   if (sbDatosDivider) sbDatosDivider.style.display = 'block';
-  if (SESSION.rol === 'OPERACION_TRAFICO') {
+  if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min      = hoy;
     document.getElementById('fechaMaxEntrega').min = hoy;

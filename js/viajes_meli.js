@@ -147,6 +147,10 @@ function inicializarPaso1() {
     if (sbAdmin) sbAdmin.style.display = 'flex';
     if (sbDiv)   sbDiv.style.display   = 'block';
   }
+  if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO') {
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fechaViaje').min = hoy;
+  }
   document.getElementById('formPlan').addEventListener('submit', submitCrearPlan);
 }
 
@@ -159,6 +163,11 @@ function submitCrearPlan(e) {
   const pais       = document.getElementById('pais').value;
   const fechaMax   = document.getElementById('fechaMaxEntrega').value;
   const schemaCode = pais === 'argentina' ? 'CL-ARG' : 'CL-CHILE';
+  const hoy = new Date().toISOString().split('T')[0];
+  if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO' && fecha < hoy) {
+    errEl.textContent = 'No podés seleccionar una fecha de inicio anterior a hoy.';
+    return;
+  }
   planCreado = { nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais };
   transicionarPaso(2);
 }
