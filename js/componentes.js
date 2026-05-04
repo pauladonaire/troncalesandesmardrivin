@@ -172,7 +172,11 @@ function crearDropdownSimple({ opciones = [], placeholder = 'Seleccionar...', me
 function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensajeVacio = 'Sin opciones disponibles', onChange = () => {} }) {
 
   function getEtiqueta(op) { return typeof op === 'object' ? op.etiqueta : op; }
-  function getVigente(op)  { return typeof op !== 'object' || estaVigente(op.vigenciaDesde, op.vigenciaHasta); }
+  function getVigente(op) {
+    if (typeof op !== 'object') return true;
+    if (!op.vigenciaDesde && !op.vigenciaHasta) return true;
+    return typeof estaVigente === 'function' ? estaVigente(op.vigenciaDesde, op.vigenciaHasta) : true;
+  }
 
   let seleccionadas    = [];
   let opcionesActuales = [...opciones];
