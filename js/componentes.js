@@ -173,9 +173,10 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
 
   function getEtiqueta(op) { return typeof op === 'object' ? op.etiqueta : op; }
   function getVigente(op) {
-    if (typeof op !== 'object') return true;
-    if (!op.vigenciaDesde && !op.vigenciaHasta) return true;
-    return typeof estaVigente === 'function' ? estaVigente(op.vigenciaDesde, op.vigenciaHasta) : true;
+    if (typeof op !== 'object') return false;
+    if (!op.vigenciaDesde && !op.vigenciaHasta) return false;
+    if (typeof estaVigente !== 'function') return false;
+    return estaVigente(op.vigenciaDesde, op.vigenciaHasta);
   }
 
   let seleccionadas    = [];
@@ -264,6 +265,7 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       checkbox.value     = etiqueta;
       checkbox.checked   = seleccionadas.includes(etiqueta);
       checkbox.style.cssText = 'width:16px;height:16px;min-width:16px;flex-shrink:0;margin:0;margin-top:2px;cursor:pointer;';
+      if (!vigente) checkbox.classList.add('ms-checkbox--vencido');
       checkbox.addEventListener('change', function() {
         if (checkbox.checked) {
           if (!seleccionadas.includes(etiqueta)) seleccionadas.push(etiqueta);
