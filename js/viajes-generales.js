@@ -728,6 +728,7 @@ function recolectarViajes() {
       etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
       rutaMaestra:            refs.ruta?.getValue()                  || '',
       conductorEmail:         cExtra.email                           || '',
+      conductorNombre:        cExtra.nombre                          || '',
       segundoConductorNombre: c2Extra.nombre                         || '',
       descripcionViaje:       tr.querySelector('.f-desc')?.value     || ''
     });

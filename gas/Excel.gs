@@ -247,8 +247,8 @@ function construirFilaViaje_(v, planDatos, emailUsuario) {
     '',                                       // [87] Paquete de datos
     '',                                       // [88] Código proveedor
     emailUsuario,                             // [89] Texto 12
-    '',                                       // [90] Texto 13
-    '',                                       // [91] Texto 14
+    v.empleador                      || '', // [90] Texto 13  → Empleador
+    v.conductorNombre                || '', // [91] Texto 14  → Nombre Conductor 1
     '',                                       // [92] Texto 15
     '',                                       // [93] Texto 16
     '',                                       // [94] Texto 17

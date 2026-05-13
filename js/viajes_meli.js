@@ -777,6 +777,7 @@ function recolectarViajes() {
       etiquetasIngreso:       ingresoSel.length ? ingresoSel : (etiquetaAutoIngreso ? [etiquetaAutoIngreso] : []),
       rutaMaestra:            refs.ruta?.getValue() || tr.querySelector('.f-desc')?.value || '',
       conductorEmail:         cExtra.email                           || '',
+      conductorNombre:        cExtra.nombre                          || '',
       segundoConductorNombre: c2Extra.nombre                         || '',
       descripcionViaje:       tr.querySelector('.f-desc')?.value     || ''
     });

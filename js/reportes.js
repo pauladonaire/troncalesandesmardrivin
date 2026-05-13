@@ -71,14 +71,16 @@ async function iniciar() {
 // ── SELECTS DE FILTRO ────────────────────────────────────
 
 function popularFiltrosSelect(viajes) {
-  const empleadores = [...new Set(viajes.map(v => extraerEmpleador(v[54])).filter(Boolean))].sort();
+  const empleadores = [...new Set(viajes.map(v => (v[90] || '')).filter(Boolean))].sort();
   const proveedores = [...new Set(viajes.map(v => v[34]).filter(Boolean))].sort();
   const vehiculos   = [...new Set(viajes.map(v => v[26]).filter(Boolean))].sort();
+  const conductores = [...new Set(viajes.map(v => (v[91] || '')).filter(Boolean))].sort();
   const usuarios    = [...new Set(viajes.map(v => v[100]).filter(Boolean))].sort();
 
   llenarSelect('filtro-empleador', empleadores);
   llenarSelect('filtro-proveedor', proveedores);
   llenarSelect('filtro-vehiculo',  vehiculos);
+  llenarSelect('filtro-conductor', conductores);
   llenarSelect('filtro-usuario',   usuarios);
 }
 
@@ -99,7 +101,7 @@ function actualizarKPIs(viajes) {
   document.getElementById('kpi-total').textContent       = viajes.length;
   document.getElementById('kpi-vehiculos').textContent   = new Set(viajes.map(v => v[26]).filter(Boolean)).size;
   document.getElementById('kpi-proveedores').textContent = new Set(viajes.map(v => v[34]).filter(Boolean)).size;
-  document.getElementById('kpi-empleadores').textContent = new Set(viajes.map(v => extraerEmpleador(v[54])).filter(Boolean)).size;
+  document.getElementById('kpi-empleadores').textContent = new Set(viajes.map(v => (v[90] || '')).filter(Boolean)).size;
   document.getElementById('kpi-usuarios').textContent    = new Set(viajes.map(v => v[100]).filter(Boolean)).size;
 }
 
@@ -115,6 +117,7 @@ function aplicarFiltros(viajes) {
   const empleador    = document.getElementById('filtro-empleador').value.toLowerCase();
   const proveedor    = document.getElementById('filtro-proveedor').value.toLowerCase();
   const vehiculo     = document.getElementById('filtro-vehiculo').value.toLowerCase();
+  const conductor    = document.getElementById('filtro-conductor').value.toLowerCase();
   const usuario      = document.getElementById('filtro-usuario').value.toLowerCase();
   const esquema      = document.getElementById('filtro-esquema').value;
   const plan         = document.getElementById('filtro-plan').value.trim().toLowerCase();
@@ -124,9 +127,10 @@ function aplicarFiltros(viajes) {
   if (fechaHasta) r = r.filter(v => { const d = parseFecha(v[0]); return d && d <= new Date(fechaHasta + 'T23:59:59'); });
   if (cargaDesde) r = r.filter(v => new Date(v[102]) >= new Date(cargaDesde));
   if (cargaHasta) r = r.filter(v => new Date(v[102]) <= new Date(cargaHasta + 'T23:59:59'));
-  if (empleador)  r = r.filter(v => extraerEmpleador(v[54]).toLowerCase().includes(empleador));
+  if (empleador)  r = r.filter(v => (v[90] || '').toLowerCase().includes(empleador));
   if (proveedor)  r = r.filter(v => (v[34] || '').toLowerCase().includes(proveedor));
   if (vehiculo)   r = r.filter(v => (v[26] || '').toLowerCase().includes(vehiculo));
+  if (conductor)  r = r.filter(v => (v[91] || '').toLowerCase().includes(conductor));
   if (usuario)    r = r.filter(v => (v[100] || '').toLowerCase().includes(usuario));
   if (esquema)    r = r.filter(v => (v[2]   || '') === esquema);
   if (plan)       r = r.filter(v => (v[101] || '').toLowerCase().includes(plan));
@@ -171,10 +175,10 @@ function renderizarTabla(viajes, pagina) {
         '<td>' + escapeHtml(v[3]  || '') + '</td>' +
         '<td>' + escapeHtml(v[26] || '') + '</td>' +
         '<td>' + escapeHtml(v[53] || '') + '</td>' +
-        '<td>' + escapeHtml(extraerEmpleador(v[54])) + '</td>' +
+        '<td>' + escapeHtml(v[90] || '') + '</td>' +
         '<td>' + escapeHtml(v[34] || '') + '</td>' +
         '<td>' + escapeHtml(v[66] || '') + '</td>' +
-        '<td>' + escapeHtml(v[62] || '') + '</td>' +
+        '<td>' + escapeHtml(v[91] || '') + '</td>' +
         '<td>' + escapeHtml(v[56] || '') + '</td>' +
         '<td>' + escapeHtml(v[8]  || '') + '</td>' +
         '<td>' + escapeHtml(v[4]  || '') + '</td>' +
@@ -194,7 +198,7 @@ function renderizarTabla(viajes, pagina) {
 
 // ── ORDENAMIENTO ─────────────────────────────────────────
 
-const COL_INDICES = [null, 0, 102, 101, 2, 3, 26, 53, 54, 34, 66, 62, 56, 8, 4, 100];
+const COL_INDICES = [null, 0, 102, 101, 2, 3, 26, 53, 90, 34, 66, 91, 56, 8, 4, 100];
 
 function ordenarPor(thIndex) {
   const colIndex = COL_INDICES[thIndex];
@@ -212,8 +216,8 @@ function ordenarPor(thIndex) {
   });
 
   viajesFiltrados.sort((a, b) => {
-    const va = (colIndex === 54 ? extraerEmpleador(a[54]) : (a[colIndex] || '')).toString().toLowerCase();
-    const vb = (colIndex === 54 ? extraerEmpleador(b[54]) : (b[colIndex] || '')).toString().toLowerCase();
+    const va = (a[colIndex] || '').toString().toLowerCase();
+    const vb = (b[colIndex] || '').toString().toLowerCase();
     return ordenActual.asc ? va.localeCompare(vb) : vb.localeCompare(va);
   });
 
@@ -285,12 +289,6 @@ function exportarExcel(viajes) {
 }
 
 // ── UTILIDADES ───────────────────────────────────────────
-
-function extraerEmpleador(texto8) {
-  if (!texto8) return '';
-  const partes = texto8.split('-');
-  return partes.length >= 4 ? partes[3] : (partes[1] || '');
-}
 
 function esViajeConFechaAnterior(fila) {
   const fechaViaje = parseFecha(fila[0]);
