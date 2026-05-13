@@ -177,3 +177,46 @@ function leerCacheEnPartes_(cache) {
   var p3 = JSON.parse(cache.get(CACHE_KEY_DM + '_parte3') || '{}');
   return Object.assign({}, p1, p2, p3);
 }
+
+// ── Historial de viajes para el módulo Reportes ──────────
+
+function getViajesHistorico(token) {
+  var session = validateSession(token);
+  if (!session) return { ok: false, error: 'Sesión inválida' };
+  if (['ADMIN_GENERAL', 'ADMIN_TRAFICO'].indexOf(session.rol) === -1) {
+    return { ok: false, error: 'Sin permisos' };
+  }
+
+  try {
+    var cache    = CacheService.getScriptCache();
+    var cacheKey = 'VIAJES_HISTORICO_V1';
+    var cached   = cache.get(cacheKey);
+
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    var values = sheetsRead_(
+      CONFIG.SHEETS.VIAJES.id,
+      CONFIG.SHEETS.VIAJES.tab + '!A:DA'
+    );
+
+    if (!values || values.length <= 1) {
+      return { ok: true, headers: [], viajes: [] };
+    }
+
+    var headers = values[0];
+    var viajes  = values.slice(1).filter(function(row) { return row[3]; });
+
+    var resultado = { ok: true, headers: headers, viajes: viajes };
+    var json = JSON.stringify(resultado);
+    if (json.length < 90000) {
+      cache.put(cacheKey, json, 60 * 30);
+    }
+
+    return resultado;
+  } catch(e) {
+    console.error('getViajesHistorico error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}

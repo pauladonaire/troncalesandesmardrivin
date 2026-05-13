@@ -32,6 +32,7 @@ function doPost(e) {
       'addRutasMaestras':      () => addRutasMaestras(token, data.filas),
       'getDatosArrastres':     () => getDatosArrastres(token),
       'addArrastres':          () => addArrastres(token, data.filas),
+      'getViajesHistorico':    () => getViajesHistorico(token),
     };
 
     const handler = routes[action];

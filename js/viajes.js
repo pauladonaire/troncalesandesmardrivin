@@ -149,10 +149,12 @@ function inicializarPaso1() {
   }
   const sbRutas        = document.getElementById('sbRutasLink');
   const sbArrastres    = document.getElementById('sbArrastresLink');
+  const sbReportes     = document.getElementById('sbReportesLink');
   const sbDatosDivider = document.getElementById('sbDatosDivider');
   if (sbRutas)        sbRutas.style.display        = 'flex';
   if (sbArrastres)    sbArrastres.style.display    = 'flex';
   if (sbDatosDivider) sbDatosDivider.style.display = 'block';
+  if (sbReportes && ['ADMIN_GENERAL', 'ADMIN_TRAFICO'].includes(SESSION.rol)) sbReportes.style.display = 'flex';
   if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min      = hoy;

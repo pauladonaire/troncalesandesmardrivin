@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reportes — Troncales</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/viajes.css">
+  <link rel="stylesheet" href="css/reportes.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <button class="btn-menu" onclick="abrirSidebar()" title="Menú">☰</button>
+        <a href="dashboard.html" style="text-decoration:none">
+          <span class="brand-name">TRONCALES</span>
+        </a>
+      </div>
+      <div class="header-user">
+        <span id="userName"></span>
+        <span id="userRolBadge" class="badge badge-info"></span>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <div class="app-body" style="overflow-y:auto; flex-direction:column;">
+      <main style="padding:24px; max-width:100%; width:100%; box-sizing:border-box;">
+
+        <h1 style="font-size:20px;font-weight:700;margin:0 0 20px;color:var(--color-white);">
+          📊 Reportes — Historial de Viajes
+        </h1>
+
+        <!-- Loader -->
+        <div id="rep-loader" class="rep-loader" style="display:none">
+          <span class="spinner"></span>
+          <span id="rep-loader-msg">Cargando historial de viajes...</span>
+        </div>
+
+        <!-- Error -->
+        <div id="rep-error" class="rep-error" style="display:none"></div>
+
+        <!-- Contenido principal -->
+        <div id="contenido-reportes" style="display:none">
+
+          <!-- KPIs -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-total">—</div>
+              <div class="kpi-label">Total Viajes</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-vehiculos">—</div>
+              <div class="kpi-label">Vehículos únicos</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-proveedores">—</div>
+              <div class="kpi-label">Proveedores únicos</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-empleadores">—</div>
+              <div class="kpi-label">Empleadores únicos</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-usuarios">—</div>
+              <div class="kpi-label">Usuarios que cargaron</div>
+            </div>
+          </div>
+
+          <!-- Filtros -->
+          <div class="filtros-grid" id="panel-filtros">
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Fecha viaje — desde</label>
+              <input type="date" id="filtro-fecha-desde" class="filtro-input">
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Fecha viaje — hasta</label>
+              <input type="date" id="filtro-fecha-hasta" class="filtro-input">
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Fecha de carga — desde</label>
+              <input type="date" id="filtro-carga-desde" class="filtro-input">
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Fecha de carga — hasta</label>
+              <input type="date" id="filtro-carga-hasta" class="filtro-input">
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Empleador</label>
+              <select id="filtro-empleador" class="filtro-select">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Proveedor / Cliente</label>
+              <select id="filtro-proveedor" class="filtro-select">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Vehículo</label>
+              <select id="filtro-vehiculo" class="filtro-select">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Usuario que cargó</label>
+              <select id="filtro-usuario" class="filtro-select">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Esquema</label>
+              <select id="filtro-esquema" class="filtro-select">
+                <option value="">Todos</option>
+                <option value="CL-ARG">Argentina</option>
+                <option value="CL-CHILE">Chile</option>
+              </select>
+            </div>
+
+            <div class="filtro-grupo">
+              <label class="filtro-label">Nombre del plan</label>
+              <input type="text" id="filtro-plan" class="filtro-input" placeholder="Buscar plan...">
+            </div>
+
+            <div class="filtro-grupo filtro-toggle">
+              <label class="filtro-label">Alerta</label>
+              <label class="toggle-label">
+                <input type="checkbox" id="filtro-fecha-anterior">
+                <span>Solo viajes cargados con fecha anterior</span>
+              </label>
+            </div>
+
+            <div class="filtros-acciones">
+              <button id="btn-aplicar" class="btn-aplicar">🔍 Aplicar filtros</button>
+              <button id="btn-limpiar" class="btn-limpiar">✕ Limpiar</button>
+              <button id="btn-exportar" class="btn-exportar">⬇ Exportar Excel (completo)</button>
+            </div>
+
+          </div>
+
+          <!-- Barra contador -->
+          <div class="tabla-header-bar">
+            <span class="tabla-contador" id="contador-viajes">—</span>
+          </div>
+
+          <!-- Tabla -->
+          <div class="tabla-container">
+            <div class="tabla-scroll">
+              <table class="tabla-viajes-hist">
+                <thead>
+                  <tr>
+                    <th onclick="ordenarPor(0)" title="Alerta fecha anterior">⚠</th>
+                    <th onclick="ordenarPor(1)">Fecha Viaje</th>
+                    <th onclick="ordenarPor(2)">Fecha Carga</th>
+                    <th onclick="ordenarPor(3)">Nombre Plan</th>
+                    <th onclick="ordenarPor(4)">Esquema</th>
+                    <th onclick="ordenarPor(5)">Cód. Despacho</th>
+                    <th onclick="ordenarPor(6)">Vehículo</th>
+                    <th onclick="ordenarPor(7)">Arrastre</th>
+                    <th onclick="ordenarPor(8)">Empleador</th>
+                    <th onclick="ordenarPor(9)">Proveedor</th>
+                    <th onclick="ordenarPor(10)">Ruta Maestra</th>
+                    <th onclick="ordenarPor(11)">Conductor</th>
+                    <th onclick="ordenarPor(12)">2do Conductor</th>
+                    <th onclick="ordenarPor(13)">Dirección</th>
+                    <th onclick="ordenarPor(14)">Unidades 1</th>
+                    <th onclick="ordenarPor(15)">Usuario Carga</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-viajes"></tbody>
+              </table>
+            </div>
+            <div class="paginacion" id="paginacion"></div>
+          </div>
+
+        </div><!-- /contenido-reportes -->
+
+      </main>
+    </div>
+
+  </div><!-- /app-layout -->
+
+  <!-- Sidebar overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="cerrarSidebar()"></div>
+
+  <!-- Sidebar nav panel -->
+  <nav class="sidebar-nav-panel" id="sidebarNavPanel">
+    <div class="sidebar-header">
+      <span class="brand-name" style="font-size:13px">TRONCALES</span>
+      <button class="sidebar-close" onclick="cerrarSidebar()">✕</button>
+    </div>
+    <div class="sidebar-items">
+      <a href="dashboard.html" class="sidebar-item">← Dashboard</a>
+      <a href="viajes.html" class="sidebar-item">🚛 Generar Viajes</a>
+      <a href="viajes_meli.html" class="sidebar-item">📦 Generar Viajes Meli</a>
+      <a href="viajes-generales.html" class="sidebar-item">📋 Viajes Generales Import.</a>
+      <a href="reportes.html" class="sidebar-item">📊 Reportes</a>
+      <div class="sidebar-divider"></div>
+      <button class="sidebar-item danger" onclick="handleLogout()">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <!-- Toast -->
+  <div class="toast-rep" id="toastRep"></div>
+
+  <script src="js/api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="js/reportes.js"></script>
+</body>
+</html>
