@@ -373,6 +373,21 @@
   border-color: rgba(232, 64, 64, 0.4);
 }
 
+/* Sin periodo de vigencia */
+.ms-pill--sin-periodo {
+  background: rgba(240, 165, 0, 0.15) !important;
+  color: var(--color-warning, #f0a500) !important;
+  border-color: rgba(240, 165, 0, 0.4);
+}
+
+/* Item bloqueado — vencida + OPERACION_TRAFICO */
+.ms-item-bloqueada {
+  cursor: not-allowed !important;
+  opacity: 0.5;
+}
+.ms-item-bloqueada:hover { background: transparent !important; }
+.ms-item-bloqueada .ms-checkbox { cursor: not-allowed !important; }
+
 .no-etiquetas { font-size: 12px; color: var(--color-text-muted); padding: 6px 4px; }
 
 /* ── Confirmation modal ── */

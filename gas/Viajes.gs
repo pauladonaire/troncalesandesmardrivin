@@ -183,9 +183,6 @@ function leerCacheEnPartes_(cache) {
 function getViajesHistorico(token) {
   var session = validateSession(token);
   if (!session) return { ok: false, error: 'Sesión inválida' };
-  if (['ADMIN_GENERAL', 'ADMIN_TRAFICO'].indexOf(session.rol) === -1) {
-    return { ok: false, error: 'Sin permisos' };
-  }
 
   try {
     var cache    = CacheService.getScriptCache();

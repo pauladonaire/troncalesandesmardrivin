@@ -12,11 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
   SESSION = requireSession();
   if (!SESSION) return;
 
-  if (!['ADMIN_GENERAL', 'ADMIN_TRAFICO'].includes(SESSION.rol)) {
-    window.location.href = 'dashboard.html';
-    return;
-  }
-
   document.getElementById('userName').textContent    = SESSION.nombre_completo;
   document.getElementById('userRolBadge').textContent = SESSION.rol;
 

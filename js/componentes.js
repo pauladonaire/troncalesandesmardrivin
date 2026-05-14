@@ -1,5 +1,23 @@
 // componentes.js — Componentes UI reutilizables compartidos entre viajes.js y viajes_meli.js
 
+// ── Estado de vigencia de tarifa (3 estados) ──
+
+function getEstadoTarifa(outputTag, outputTag2) {
+  const tieneFechas = (outputTag  && outputTag.trim()) ||
+                      (outputTag2 && outputTag2.trim());
+  if (!tieneFechas) return 'sin-periodo';
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  const inicio = outputTag  && outputTag.trim()  ? new Date(outputTag)  : null;
+  const fin    = outputTag2 && outputTag2.trim() ? new Date(outputTag2) : null;
+
+  if (inicio && hoy < inicio) return 'vencida';
+  if (fin    && hoy > fin)    return 'vencida';
+  return 'vigente';
+}
+
 // ── Dropdown Simple (selección única con búsqueda, panel en body) ──
 
 function crearDropdownSimple({ opciones = [], placeholder = 'Seleccionar...', mensajeVacio = 'Sin opciones disponibles', onChange = () => {}, deshabilitadosFn = null }) {
@@ -171,12 +189,16 @@ function crearDropdownSimple({ opciones = [], placeholder = 'Seleccionar...', me
 
 function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensajeVacio = 'Sin opciones disponibles', onChange = () => {} }) {
 
-  function getEtiqueta(op) { return typeof op === 'object' ? op.etiqueta : op; }
-  function getVigente(op) {
-    if (typeof op !== 'object') return false;
-    if (!op.vigenciaDesde && !op.vigenciaHasta) return false;
-    if (typeof estaVigente !== 'function') return false;
-    return estaVigente(op.vigenciaDesde, op.vigenciaHasta);
+  function getEtiqueta(op) {
+    if (typeof op === 'string') return op;
+    return op.nombre || op.etiqueta || '';
+  }
+  function getEstado(op) {
+    if (typeof op === 'string') return 'vigente';
+    if (op.estado) return op.estado;
+    const tag  = op.outputTag  || op.vigenciaDesde || '';
+    const tag2 = op.outputTag2 || op.vigenciaHasta || '';
+    return getEstadoTarifa(tag, tag2);
   }
 
   let seleccionadas    = [];
@@ -213,11 +235,17 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
   function renderPills() {
     pillsDiv.innerHTML = '';
     seleccionadas.forEach(val => {
-      const opcion  = opcionesActuales.find(o => getEtiqueta(o) === val);
-      const vigente = opcion ? getVigente(opcion) : true;
-      const pill  = document.createElement('span');
-      pill.className = 'ms-pill' + (vigente ? '' : ' ms-pill--vencida');
-      if (!vigente) pill.title = 'Fuera de período de vigencia';
+      const opcion = opcionesActuales.find(o => getEtiqueta(o) === val);
+      const estado = opcion ? getEstado(opcion) : 'vigente';
+      const pill = document.createElement('span');
+      pill.className = 'ms-pill';
+      if (estado === 'vencida') {
+        pill.className += ' ms-pill--vencida';
+        pill.title = 'Fuera de período de vigencia';
+      } else if (estado === 'sin-periodo') {
+        pill.className += ' ms-pill--sin-periodo';
+        pill.title = 'Sin período de vigencia definido';
+      }
       const texto = document.createElement('span');
       texto.textContent = val;
       const x = document.createElement('span');
@@ -253,32 +281,51 @@ function crearMultiSelect({ opciones = [], placeholder = 'Seleccionar...', mensa
       return;
     }
     filtradas.forEach(opcion => {
-      const etiqueta = getEtiqueta(opcion);
-      const vigente  = getVigente(opcion);
-      const item     = document.createElement('label');
-      item.className = 'ms-item';
-      item.style.cssText = 'display:flex;flex-direction:row;align-items:flex-start;gap:10px;cursor:pointer;width:100%;box-sizing:border-box;';
-      if (!vigente) item.title = 'Fuera de período de vigencia';
+      const etiqueta    = getEtiqueta(opcion);
+      const estado      = getEstado(opcion);
+      const esOpTrafico = window.SESSION && window.SESSION.rol === 'OPERACION_TRAFICO';
+      const bloqueada   = estado === 'vencida' && esOpTrafico;
+
+      const item = document.createElement('label');
+      item.className = 'ms-item' + (bloqueada ? ' ms-item-bloqueada' : '');
+      item.style.cssText = 'display:flex;flex-direction:row;align-items:flex-start;gap:10px;width:100%;box-sizing:border-box;cursor:' + (bloqueada ? 'not-allowed' : 'pointer') + ';';
+
+      if (bloqueada) {
+        item.title = 'Tarifa vencida — no disponible para tu perfil';
+      } else if (estado === 'sin-periodo') {
+        item.title = 'Sin periodo de vigencia definido — verificar antes de usar';
+      } else if (estado === 'vencida') {
+        item.title = 'Tarifa vencida';
+      }
+
       const checkbox = document.createElement('input');
       checkbox.type      = 'checkbox';
       checkbox.className = 'ms-checkbox';
       checkbox.value     = etiqueta;
       checkbox.checked   = seleccionadas.includes(etiqueta);
-      checkbox.style.cssText = 'width:16px;height:16px;min-width:16px;flex-shrink:0;margin:0;margin-top:2px;cursor:pointer;';
-      if (!vigente) checkbox.classList.add('ms-checkbox--vencido');
-      checkbox.addEventListener('change', function() {
-        if (checkbox.checked) {
-          if (!seleccionadas.includes(etiqueta)) seleccionadas.push(etiqueta);
-        } else {
-          seleccionadas = seleccionadas.filter(s => s !== etiqueta);
-        }
-        renderPills();
-        onChange([...seleccionadas]);
-      });
-      const labelTexto     = document.createElement('span');
-      labelTexto.className = 'ms-item-texto' + (vigente ? '' : ' ms-item-texto--vencida');
+      checkbox.disabled  = bloqueada;
+      checkbox.style.cssText = 'width:16px;height:16px;min-width:16px;flex-shrink:0;margin:0;margin-top:2px;cursor:' + (bloqueada ? 'not-allowed' : 'pointer') + ';';
+
+      if (!bloqueada) {
+        checkbox.addEventListener('change', function() {
+          if (checkbox.checked) {
+            if (!seleccionadas.includes(etiqueta)) seleccionadas.push(etiqueta);
+          } else {
+            seleccionadas = seleccionadas.filter(s => s !== etiqueta);
+          }
+          renderPills();
+          onChange([...seleccionadas]);
+        });
+      }
+
+      const labelTexto = document.createElement('span');
+      labelTexto.className = 'ms-item-texto';
       labelTexto.textContent = etiqueta;
-      labelTexto.style.cssText = 'flex:1;word-break:break-word;white-space:normal;line-height:1.4;';
+      const colorTexto = estado === 'sin-periodo' ? 'var(--color-warning,#f0a500)'
+                       : estado === 'vencida'     ? 'var(--color-danger,#e84040)'
+                       :                            'var(--color-white,#ffffff)';
+      labelTexto.style.cssText = 'flex:1;word-break:break-word;white-space:normal;line-height:1.4;font-size:13px;color:' + colorTexto + ';';
+
       item.appendChild(checkbox);
       item.appendChild(labelTexto);
       listaItems.appendChild(item);

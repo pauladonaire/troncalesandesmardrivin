@@ -586,17 +586,28 @@ function actualizarEtiquetasCosto(idx, vehiculoCode) {
     return;
   }
   const norm = emp.trim().toLowerCase();
-  const etiquetasCosto = [...new Set(
-    (window.DATOS.esquemasCostos || []).slice(1)
-      .filter(r => {
-        const schemaName = String(r[1]  || '').trim().toLowerCase();
-        const employer   = String(r[12] || '').trim().toLowerCase();
-        return schemaName === norm || employer === norm;
-      })
-      .map(r => String(r[26] || '').trim())
-      .filter(e => e !== '')
-  )];
-  const items = etiquetasCosto.map(e => ({ etiqueta: e, vigenciaDesde: '', vigenciaHasta: '' }));
+  const nombresVistosCosto = new Set();
+  const items = [];
+  (window.DATOS.esquemasCostos || []).slice(1)
+    .filter(r => {
+      const schemaName = String(r[1]  || '').trim().toLowerCase();
+      const employer   = String(r[12] || '').trim().toLowerCase();
+      return schemaName === norm || employer === norm;
+    })
+    .forEach(r => {
+      const nombre = String(r[26] || '').trim();
+      if (!nombre || nombresVistosCosto.has(nombre)) return;
+      nombresVistosCosto.add(nombre);
+      const outputTag  = String(r[22] || '').trim();
+      const outputTag2 = String(r[23] || '').trim();
+      items.push({ nombre, outputTag, outputTag2, estado: getEstadoTarifa(outputTag, outputTag2) });
+    });
+  items.sort((a, b) => {
+    const p = { vigente: 0, 'sin-periodo': 1, vencida: 2 };
+    return (p[a.estado] ?? 1) !== (p[b.estado] ?? 1)
+      ? (p[a.estado] ?? 1) - (p[b.estado] ?? 1)
+      : a.nombre.localeCompare(b.nombre);
+  });
   if (!items.length) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin costos cargados para este empleador</span>';
     return;
@@ -626,17 +637,28 @@ function actualizarEtiquetasIngreso(idx, proveedorNombre) {
     return;
   }
   const norm = proveedorNombre.trim().toLowerCase();
-  const etiquetasIngreso = [...new Set(
-    (window.DATOS.esquemasIngresos || []).slice(1)
-      .filter(r => {
-        const schemaName   = String(r[1]  || '').trim().toLowerCase();
-        const supplierName = String(r[11] || '').trim().toLowerCase();
-        return schemaName === norm || supplierName === norm;
-      })
-      .map(r => String(r[26] || '').trim())
-      .filter(e => e !== '')
-  )];
-  const items = etiquetasIngreso.map(e => ({ etiqueta: e, vigenciaDesde: '', vigenciaHasta: '' }));
+  const nombresVistosIngreso = new Set();
+  const items = [];
+  (window.DATOS.esquemasIngresos || []).slice(1)
+    .filter(r => {
+      const schemaName   = String(r[1]  || '').trim().toLowerCase();
+      const supplierName = String(r[11] || '').trim().toLowerCase();
+      return schemaName === norm || supplierName === norm;
+    })
+    .forEach(r => {
+      const nombre = String(r[26] || '').trim();
+      if (!nombre || nombresVistosIngreso.has(nombre)) return;
+      nombresVistosIngreso.add(nombre);
+      const outputTag  = String(r[22] || '').trim();
+      const outputTag2 = String(r[23] || '').trim();
+      items.push({ nombre, outputTag, outputTag2, estado: getEstadoTarifa(outputTag, outputTag2) });
+    });
+  items.sort((a, b) => {
+    const p = { vigente: 0, 'sin-periodo': 1, vencida: 2 };
+    return (p[a.estado] ?? 1) !== (p[b.estado] ?? 1)
+      ? (p[a.estado] ?? 1) - (p[b.estado] ?? 1)
+      : a.nombre.localeCompare(b.nombre);
+  });
   if (!items.length) {
     td.innerHTML = '<span class="no-etiquetas text-muted">Sin tarifas cargadas para este proveedor</span>';
     return;
