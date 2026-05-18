@@ -82,6 +82,7 @@ async function refrescarDatosSilencioso() {
 document.addEventListener('DOMContentLoaded', async () => {
   SESSION = requireSession();
   if (!SESSION) return;
+  window.SESSION = SESSION;
   document.getElementById('userName').textContent     = SESSION.nombre_completo;
   document.getElementById('userRolBadge').textContent = SESSION.rol;
 
