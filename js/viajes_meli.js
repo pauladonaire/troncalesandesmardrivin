@@ -285,9 +285,14 @@ function _generarDesdeRows(rows) {
   document.getElementById('btnCargarViajes').style.display = 'inline-flex';
   document.getElementById('validacionError').style.display = 'none';
 
+  const hayPatentesDuplicadas = marcarPatentesDuplicadas();
+
   const alerta = document.getElementById('meliAlertaNoValidados');
-  if (noValidados > 0) {
-    alerta.textContent = `${noValidados} campo(s) con valores no encontrados en el sistema (marcados en naranja). Podés corregirlos antes de cargar.`;
+  const mensajes = [];
+  if (noValidados > 0) mensajes.push(`${noValidados} campo(s) con valores no encontrados en el sistema (marcados en naranja)`);
+  if (hayPatentesDuplicadas) mensajes.push('hay vehículos/patentes repetidos entre filas (marcados en rojo)');
+  if (mensajes.length) {
+    alerta.textContent = mensajes.join(' y ') + '. Podés corregirlos antes de cargar.';
     alerta.style.display = 'block';
   } else {
     alerta.style.display = 'none';
@@ -530,6 +535,28 @@ function eliminarFila(btn) {
   }
 }
 
+// ── Vehículos/patentes sin duplicar en el mismo plan ──
+
+function getPatentesRepetidas() {
+  const conteo = {};
+  Object.keys(filaRefs).forEach(k => {
+    const v = filaRefs[k]?.veh?.getValue();
+    if (v) conteo[v] = (conteo[v] || 0) + 1;
+  });
+  return new Set(Object.keys(conteo).filter(v => conteo[v] > 1));
+}
+
+function marcarPatentesDuplicadas() {
+  const repetidas = getPatentesRepetidas();
+  document.querySelectorAll('#tripsTbody tr').forEach(tr => {
+    const idx  = Number(tr.dataset.idx);
+    const refs = filaRefs[idx] || {};
+    const v    = refs.veh?.getValue();
+    if (v && repetidas.has(v)) refs.veh?.input?.classList.add('error');
+  });
+  return repetidas.size > 0;
+}
+
 // ── Conductores sin duplicar ──
 
 function getConductoresYaUsados(filaIdx, campo) {
@@ -761,6 +788,7 @@ function validarFilas() {
     if (triggerI) { triggerI.classList.toggle('error', !efectivoIngreso.length); if (!efectivoIngreso.length) ok = false; }
     else if (!efectivoIngreso.length) ok = false;
   });
+  if (marcarPatentesDuplicadas()) ok = false;
   return ok;
 }
 
@@ -813,7 +841,9 @@ function recolectarViajes() {
 function cargarViajes() {
   if (!validarFilas()) {
     const errEl = document.getElementById('validacionError');
-    errEl.textContent = 'Completá los campos obligatorios marcados en rojo (*).';
+    errEl.textContent = getPatentesRepetidas().size > 0
+      ? 'Hay un mismo vehículo/patente asignado a más de una fila (marcadas en rojo). Cada vehículo solo puede usarse una vez por plan.'
+      : 'Completá los campos obligatorios marcados en rojo (*).';
     errEl.style.display = 'block';
     document.querySelector('#tripsTbody .error')?.closest('tr')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;

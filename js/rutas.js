@@ -4,12 +4,14 @@ let SESSION = null;
 let RUTAS   = [];
 let SOCIOS  = [];
 let HEADERS = [];
+let puedeGestionarRutas = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   SESSION = requireSession();
   if (!SESSION) return;
   document.getElementById('userName').textContent     = SESSION.nombre_completo;
   document.getElementById('userRolBadge').textContent = SESSION.rol;
+  puedeGestionarRutas = SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO';
   await iniciar();
 });
 
@@ -24,7 +26,7 @@ async function iniciar() {
     HEADERS = res.headers || ['Nombre', 'Proveedor'];
     document.getElementById('initLoader').style.display = 'none';
     document.getElementById('contenido').style.display  = 'block';
-    renderTablaRutas(RUTAS);
+    filtrarRutas();
   } catch(e) {
     document.getElementById('initLoader').style.display = 'none';
     document.getElementById('initError').textContent    = 'Error al cargar: ' + e.message;
@@ -32,35 +34,101 @@ async function iniciar() {
   }
 }
 
-function renderTablaRutas(rutas) {
+function renderTablaRutas(entries) {
   const thead = document.getElementById('theadRutas');
   const tbody = document.getElementById('tbodyRutas');
   const badge = document.getElementById('badgeCantidad');
   const sinDatos = document.getElementById('sinDatos');
 
-  thead.innerHTML = '<tr>' + HEADERS.map(h => '<th>' + escapeHtml(String(h)) + '</th>').join('') + '</tr>';
+  thead.innerHTML = '<tr>'
+    + HEADERS.map(h => '<th>' + escapeHtml(String(h)) + '</th>').join('')
+    + (puedeGestionarRutas ? '<th>Acciones</th>' : '')
+    + '</tr>';
 
   tbody.innerHTML = '';
-  rutas.forEach(row => {
+  entries.forEach(({ row, idx }) => {
     const tr = document.createElement('tr');
     HEADERS.forEach((_, i) => {
       const td = document.createElement('td');
       td.textContent = row[i] != null ? String(row[i]) : '';
       tr.appendChild(td);
     });
+    if (puedeGestionarRutas) {
+      const tdAcciones = document.createElement('td');
+      tdAcciones.style.whiteSpace = 'nowrap';
+
+      const btnEditar = document.createElement('button');
+      btnEditar.className   = 'btn btn-outline btn-sm';
+      btnEditar.textContent = 'Editar nombre';
+      btnEditar.style.marginRight = '6px';
+      btnEditar.onclick = () => editarNombreRuta(idx);
+
+      const btnEliminar = document.createElement('button');
+      btnEliminar.className   = 'btn btn-danger btn-sm';
+      btnEliminar.textContent = 'Eliminar';
+      btnEliminar.onclick = () => eliminarRutaMaestra(idx);
+
+      tdAcciones.appendChild(btnEditar);
+      tdAcciones.appendChild(btnEliminar);
+      tr.appendChild(tdAcciones);
+    }
     tbody.appendChild(tr);
   });
 
-  badge.textContent = rutas.length + (rutas.length === 1 ? ' ruta' : ' rutas');
-  sinDatos.style.display = rutas.length === 0 ? 'block' : 'none';
+  badge.textContent = entries.length + (entries.length === 1 ? ' ruta' : ' rutas');
+  sinDatos.style.display = entries.length === 0 ? 'block' : 'none';
 }
 
 function filtrarRutas() {
   const q = document.getElementById('buscadorRutas').value.trim().toLowerCase();
-  const filtradas = q
-    ? RUTAS.filter(row => row.some(cell => String(cell || '').toLowerCase().includes(q)))
-    : RUTAS;
-  renderTablaRutas(filtradas);
+  const entries = RUTAS
+    .map((row, idx) => ({ row, idx }))
+    .filter(({ row }) => !q || row.some(cell => String(cell || '').toLowerCase().includes(q)));
+  renderTablaRutas(entries);
+}
+
+// ── Eliminar / editar (solo ADMIN_GENERAL y ADMIN_TRAFICO) ──
+
+async function recargarRutas() {
+  const res = await gasCall('getDatosRutas');
+  if (res.ok) {
+    RUTAS = res.rutas || [];
+    filtrarRutas();
+  }
+}
+
+async function eliminarRutaMaestra(idx) {
+  const row = RUTAS[idx];
+  if (!row) return;
+  const nombre = row[0] || '(sin nombre)';
+  if (!confirm(`¿Eliminar la ruta maestra "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await gasCall('deleteRutaMaestra', { indice: idx });
+    if (!res.ok) throw new Error(res.error || 'Error al eliminar');
+    mostrarToast('✓ Ruta eliminada correctamente');
+    await recargarRutas();
+  } catch(e) {
+    alert('Error al eliminar: ' + e.message);
+  }
+}
+
+async function editarNombreRuta(idx) {
+  const row = RUTAS[idx];
+  if (!row) return;
+  const nombreActual = row[0] || '';
+  const nuevoNombre = prompt('Nuevo nombre de la ruta:', nombreActual);
+  if (nuevoNombre === null) return;
+  const nombre = nuevoNombre.trim();
+  if (!nombre) { alert('El nombre no puede estar vacío.'); return; }
+  if (nombre === nombreActual) return;
+  try {
+    const res = await gasCall('renombrarRutaMaestra', { indice: idx, nuevoNombre: nombre });
+    if (!res.ok) throw new Error(res.error || 'Error al renombrar');
+    mostrarToast('✓ Ruta renombrada correctamente');
+    await recargarRutas();
+  } catch(e) {
+    alert('Error al renombrar: ' + e.message);
+  }
 }
 
 function cambiarPestana(tab) {
@@ -159,8 +227,7 @@ async function guardarRutas() {
     const res = await gasCall('addRutasMaestras', { filas });
     if (!res.ok) throw new Error(res.error || 'Error al guardar');
     mostrarToast('✓ ' + filas.length + ' ruta(s) guardada(s) correctamente');
-    const resAct = await gasCall('getDatosRutas');
-    if (resAct.ok) { RUTAS = resAct.rutas || []; renderTablaRutas(RUTAS); }
+    await recargarRutas();
     document.getElementById('filasRutas').innerHTML = '';
     document.getElementById('btnGuardarRutas').style.display = 'none';
     cambiarPestana('ver');
