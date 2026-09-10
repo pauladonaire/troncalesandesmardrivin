@@ -2,17 +2,44 @@
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxqymlzy5_IUBkgXEDIppgg7QG4kNzrlmlGqriiFbBoWJPookVJMHnSSt-JCyVGDx8AFg/exec';  // reemplazar con la URL real al deployar
 
+// Códigos de error transitorios (cuota de ejecuciones simultáneas de Apps Script,
+// caídas puntuales de la infraestructura de Google, etc.) — vale la pena reintentar.
+const GAS_STATUS_REINTENTABLES = [404, 429, 500, 502, 503, 504];
+const GAS_MAX_REINTENTOS       = 2;   // total: 1 intento inicial + 2 reintentos
+const GAS_ESPERA_BASE_MS       = 1000;
+
+function esperar_(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
 async function gasCall(action, params = {}) {
   const token = getToken();
   const body  = JSON.stringify({ action, token, ...params });
-  const res   = await fetch(GAS_URL, {
-    method:  'POST',
-    body,
-    headers: { 'Content-Type': 'text/plain' }
-    // text/plain evita el preflight CORS en GAS
-  });
-  if (!res.ok) throw new Error('Error de red: ' + res.status);
-  return res.json();
+
+  let ultimoError;
+  for (let intento = 0; intento <= GAS_MAX_REINTENTOS; intento++) {
+    try {
+      const res = await fetch(GAS_URL, {
+        method:  'POST',
+        body,
+        headers: { 'Content-Type': 'text/plain' }
+        // text/plain evita el preflight CORS en GAS
+      });
+      if (!res.ok) {
+        if (GAS_STATUS_REINTENTABLES.includes(res.status) && intento < GAS_MAX_REINTENTOS) {
+          await esperar_(GAS_ESPERA_BASE_MS * (intento + 1));
+          continue;
+        }
+        throw new Error('Error de red: ' + res.status);
+      }
+      return await res.json();
+    } catch (e) {
+      ultimoError = e;
+      if (intento < GAS_MAX_REINTENTOS) {
+        await esperar_(GAS_ESPERA_BASE_MS * (intento + 1));
+        continue;
+      }
+    }
+  }
+  throw ultimoError;
 }
 
 function getToken()   { return localStorage.getItem('troncales_token'); }
