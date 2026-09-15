@@ -93,7 +93,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('contenido').style.display  = 'none';
     iniciarLoaderConFeedback();
     try {
-      const res = await gasCallDatosMaestros();
+      const res = await gasCallDatosMaestros((i, total) => {
+        const sub = document.getElementById('initLoaderSubtxt');
+        if (sub) sub.textContent = 'Cargando datos maestros (' + i + ' de ' + total + ')...';
+      });
       detenerLoader();
       if (res.ok === false) throw new Error(res.error || 'Error al cargar datos maestros');
       window.DATOS = res;

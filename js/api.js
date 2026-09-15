@@ -51,16 +51,26 @@ async function gasCall(action, params = {}) {
 // getDatosMaestros devuelve TODO junto (direcciones, tripulantes, flota, socios,
 // rutas, arrastres, esquemas de costo/ingreso) en una sola respuesta — se volvió
 // demasiado grande para que Apps Script la entregue de forma confiable a través
-// del endpoint interno de googleusercontent.com. Se pide en 2 partes en paralelo
-// y se combina acá, para que el resto del código siga viendo un solo objeto.
-async function gasCallDatosMaestros() {
-  const [parte1, parte2] = await Promise.all([
-    gasCall('getDatosMaestrosParte1'),
-    gasCall('getDatosMaestrosParte2')
-  ]);
-  if (parte1 && parte1.ok === false) return parte1;
-  if (parte2 && parte2.ok === false) return parte2;
-  return Object.assign({ ok: true }, parte1, parte2);
+// del endpoint interno de googleusercontent.com (ni partida en 2 alcanzó). Se
+// pide de a una parte por vez (secuencial, no en paralelo, para no exigir de más
+// a la cuota de ejecuciones de Apps Script) y se combina acá — más lento, pero
+// cada pedido es del mismo tamaño que getDatosRutas/getDatosArrastres, que sí
+// funcionan siempre.
+const GAS_PARTES_DATOS_MAESTROS = [
+  'getParteDirecciones', 'getParteTripulantes', 'getParteFlota', 'getParteSocios',
+  'getParteRutas', 'getParteArrastres', 'getParteEsquemasCostos', 'getParteEsquemasIngresos'
+];
+
+async function gasCallDatosMaestros(onProgreso) {
+  const combinado = { ok: true };
+  for (let i = 0; i < GAS_PARTES_DATOS_MAESTROS.length; i++) {
+    const accion = GAS_PARTES_DATOS_MAESTROS[i];
+    if (onProgreso) onProgreso(i + 1, GAS_PARTES_DATOS_MAESTROS.length);
+    const parte = await gasCall(accion);
+    if (parte && parte.ok === false) return parte;
+    Object.assign(combinado, parte);
+  }
+  return combinado;
 }
 
 function getToken()   { return localStorage.getItem('troncales_token'); }
