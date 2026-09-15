@@ -7,6 +7,7 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxqymlzy5_IUBkgXEDIppgg
 const GAS_STATUS_REINTENTABLES = [404, 429, 500, 502, 503, 504];
 const GAS_MAX_REINTENTOS       = 2;   // total: 1 intento inicial + 2 reintentos
 const GAS_ESPERA_BASE_MS       = 1000;
+const GAS_TIMEOUT_MS           = 30000; // corta la espera si Google no responde nada
 
 function esperar_(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
@@ -16,13 +17,17 @@ async function gasCall(action, params = {}) {
 
   let ultimoError;
   for (let intento = 0; intento <= GAS_MAX_REINTENTOS; intento++) {
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), GAS_TIMEOUT_MS);
     try {
       const res = await fetch(GAS_URL, {
         method:  'POST',
         body,
-        headers: { 'Content-Type': 'text/plain' }
+        headers: { 'Content-Type': 'text/plain' },
         // text/plain evita el preflight CORS en GAS
+        signal:  controller.signal
       });
+      clearTimeout(timeoutId);
       if (!res.ok) {
         if (GAS_STATUS_REINTENTABLES.includes(res.status) && intento < GAS_MAX_REINTENTOS) {
           await esperar_(GAS_ESPERA_BASE_MS * (intento + 1));
@@ -32,7 +37,8 @@ async function gasCall(action, params = {}) {
       }
       return await res.json();
     } catch (e) {
-      ultimoError = e;
+      clearTimeout(timeoutId);
+      ultimoError = e.name === 'AbortError' ? new Error('Tiempo de espera agotado (30s) — Google no respondió.') : e;
       if (intento < GAS_MAX_REINTENTOS) {
         await esperar_(GAS_ESPERA_BASE_MS * (intento + 1));
         continue;
