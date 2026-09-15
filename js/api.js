@@ -48,6 +48,21 @@ async function gasCall(action, params = {}) {
   throw ultimoError;
 }
 
+// getDatosMaestros devuelve TODO junto (direcciones, tripulantes, flota, socios,
+// rutas, arrastres, esquemas de costo/ingreso) en una sola respuesta — se volvió
+// demasiado grande para que Apps Script la entregue de forma confiable a través
+// del endpoint interno de googleusercontent.com. Se pide en 2 partes en paralelo
+// y se combina acá, para que el resto del código siga viendo un solo objeto.
+async function gasCallDatosMaestros() {
+  const [parte1, parte2] = await Promise.all([
+    gasCall('getDatosMaestrosParte1'),
+    gasCall('getDatosMaestrosParte2')
+  ]);
+  if (parte1 && parte1.ok === false) return parte1;
+  if (parte2 && parte2.ok === false) return parte2;
+  return Object.assign({ ok: true }, parte1, parte2);
+}
+
 function getToken()   { return localStorage.getItem('troncales_token'); }
 function getSession() { return JSON.parse(localStorage.getItem('troncales_session') || 'null'); }
 

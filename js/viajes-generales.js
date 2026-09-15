@@ -57,7 +57,7 @@ function detenerLoader() {
 
 async function getDatosMaestrosConTimeout() {
   return Promise.race([
-    gasCall('getDatosMaestros'),
+    gasCallDatosMaestros(),
     new Promise((_, reject) => setTimeout(() =>
       reject(new Error('Timeout: el servidor tardó demasiado. Recargá la página para reintentar.')), 45000))
   ]);
@@ -65,7 +65,7 @@ async function getDatosMaestrosConTimeout() {
 
 async function refrescarDatosSilencioso() {
   try {
-    const res = await gasCall('getDatosMaestros');
+    const res = await gasCallDatosMaestros();
     if (res.ok !== false) {
       guardarEnCache(res);
       if (!Object.keys(filaRefs).length) {
@@ -936,7 +936,7 @@ async function syncViajesDatos(accion, badgeId, btnId) {
     if (res.ok) {
       if (badge) badge.textContent = '✓ ' + (res.count || '');
       localStorage.removeItem(CACHE_KEY);
-      const nuevosDatos = await gasCall('getDatosMaestros');
+      const nuevosDatos = await gasCallDatosMaestros();
       if (nuevosDatos.ok !== false) {
         window.DATOS = nuevosDatos;
         guardarEnCache(nuevosDatos);
