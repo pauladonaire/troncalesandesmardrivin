@@ -57,7 +57,7 @@ function iniciarLoaderConFeedback() {
       loaderSubtxt.textContent = 'Esto puede demorar unos segundos en el primer acceso del día.';
     if (loaderSeconds === 20 && loaderSubtxt)
       loaderSubtxt.textContent = 'Conectando con Google Apps Script, por favor esperá...';
-    if (loaderSeconds === 40) {
+    if (loaderSeconds === 90) {
       clearInterval(loaderInterval);
       loaderInterval = null;
       if (loaderSubtxt) loaderSubtxt.innerHTML = 'La conexión está tardando más de lo esperado. <button onclick="location.reload()" style="color:#01feff;background:none;border:1px solid #01feff;padding:4px 12px;border-radius:4px;cursor:pointer;margin-left:8px;">Reintentar</button>';

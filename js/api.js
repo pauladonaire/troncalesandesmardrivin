@@ -7,7 +7,10 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxqymlzy5_IUBkgXEDIppgg
 const GAS_STATUS_REINTENTABLES = [404, 429, 500, 502, 503, 504];
 const GAS_MAX_REINTENTOS       = 2;   // total: 1 intento inicial + 2 reintentos
 const GAS_ESPERA_BASE_MS       = 1000;
-const GAS_TIMEOUT_MS           = 30000; // corta la espera si Google no responde nada
+const GAS_TIMEOUT_MS           = 90000; // corta la espera si Google no responde nada
+// 90s: la primera lectura en frío de datos maestros (8 sheets) puede tardar bastante
+// más que 30s. Con 2 reintentos, el peor caso ronda los 4-5 minutos — mucho, pero
+// preferible a cortar la conexión justo antes de que Google termine de responder.
 
 function esperar_(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
