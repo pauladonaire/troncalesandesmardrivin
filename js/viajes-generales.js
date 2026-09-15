@@ -350,10 +350,14 @@ function _buscarConductor(raw) {
 
 function getRutasOpciones(filtroProveedor) {
   const all = (window.DATOS.rutas || []).map(r => {
-    const vals   = Object.values(r);
-    const nombre = String(vals[0] || '');
-    const prov   = String(vals[1] || '');
-    return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov };
+    const vals    = Object.values(r);
+    const nombre  = String(vals[0] || '');
+    const prov    = String(vals[1] || '');
+    const km      = String(r.KM      || vals[2] || '').trim();
+    const origen  = String(r.ORIGEN  || vals[3] || '').trim();
+    const destino = String(r.DESTINO || vals[4] || '').trim();
+    const kmOrigenDestino = [km, origen, destino].join(',');
+    return { value: nombre, label: nombre + (prov ? ' [' + prov + ']' : ''), rutaProv: prov, extra: { kmOrigenDestino } };
   });
   if (!filtroProveedor) return all;
   const norm = filtroProveedor.toLowerCase();
@@ -778,6 +782,7 @@ function recolectarViajes() {
       proveedor:              refs.prov?.getValue()                  || '',
       etiquetasIngreso:       msI ? JSON.parse(msI.dataset.selected || '[]') : [],
       rutaMaestra:            refs.ruta?.getValue()                  || '',
+      rutaKmOrigenDestino:    refs.ruta?.getExtra()?.kmOrigenDestino || '',
       conductorEmail:         cExtra.email                           || '',
       conductorNombre:        cExtra.nombre                          || '',
       segundoConductorNombre: c2Extra.nombre                         || '',

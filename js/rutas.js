@@ -63,12 +63,19 @@ function renderTablaRutas(entries) {
       btnEditar.style.marginRight = '6px';
       btnEditar.onclick = () => editarNombreRuta(idx);
 
+      const btnEditarKmOD = document.createElement('button');
+      btnEditarKmOD.className   = 'btn btn-outline btn-sm';
+      btnEditarKmOD.textContent = 'Editar KM/Origen/Destino';
+      btnEditarKmOD.style.marginRight = '6px';
+      btnEditarKmOD.onclick = () => editarKmOrigenDestinoRuta(idx);
+
       const btnEliminar = document.createElement('button');
       btnEliminar.className   = 'btn btn-danger btn-sm';
       btnEliminar.textContent = 'Eliminar';
       btnEliminar.onclick = () => eliminarRutaMaestra(idx);
 
       tdAcciones.appendChild(btnEditar);
+      tdAcciones.appendChild(btnEditarKmOD);
       tdAcciones.appendChild(btnEliminar);
       tr.appendChild(tdAcciones);
     }
@@ -109,6 +116,32 @@ async function eliminarRutaMaestra(idx) {
     await recargarRutas();
   } catch(e) {
     alert('Error al eliminar: ' + e.message);
+  }
+}
+
+async function editarKmOrigenDestinoRuta(idx) {
+  const row = RUTAS[idx];
+  if (!row) return;
+  const kmActual      = row[2] || '';
+  const origenActual  = row[3] || '';
+  const destinoActual = row[4] || '';
+
+  const km = prompt('KM:', kmActual);
+  if (km === null) return;
+  const origen = prompt('Origen:', origenActual);
+  if (origen === null) return;
+  const destino = prompt('Destino:', destinoActual);
+  if (destino === null) return;
+
+  try {
+    const res = await gasCall('editarKmOrigenDestinoRuta', {
+      indice: idx, km: km.trim(), origen: origen.trim(), destino: destino.trim()
+    });
+    if (!res.ok) throw new Error(res.error || 'Error al actualizar');
+    mostrarToast('✓ KM/Origen/Destino actualizados correctamente');
+    await recargarRutas();
+  } catch(e) {
+    alert('Error al actualizar: ' + e.message);
   }
 }
 
@@ -155,8 +188,9 @@ function generarFilasRutas() {
       const group = document.createElement('div');
       group.className = 'fila-campo';
 
+      const esOpcional = j === 1; // solo Proveedor es opcional — Nombre, KM, Origen y Destino son obligatorios
       const label = document.createElement('label');
-      label.textContent = header + (j === 0 ? ' *' : '');
+      label.textContent = header + (esOpcional ? '' : ' *');
       group.appendChild(label);
 
       // Columna de proveedor (índice 1): dropdown select si hay socios
@@ -177,7 +211,7 @@ function generarFilasRutas() {
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'fila-input';
-        input.placeholder = j === 0 ? 'Nombre de la ruta (obligatorio)' : String(header);
+        input.placeholder = esOpcional ? String(header) : (String(header) + ' (obligatorio)');
         input.dataset.col = j;
         group.appendChild(input);
       }
@@ -202,20 +236,21 @@ async function guardarRutas() {
   filasEl.forEach(filaEl => {
     const fila = [];
     filaEl.querySelectorAll('.fila-input').forEach(input => {
+      const col = Number(input.dataset.col);
+      const esOpcional = col === 1; // solo Proveedor es opcional
+      if (!esOpcional && !input.value.trim()) {
+        input.classList.add('error');
+        valido = false;
+      } else {
+        input.classList.remove('error');
+      }
       fila.push(input.value.trim());
     });
-    const primero = filaEl.querySelector('[data-col="0"]');
-    if (!primero || !primero.value.trim()) {
-      if (primero) primero.classList.add('error');
-      valido = false;
-    } else {
-      if (primero) primero.classList.remove('error');
-    }
     filas.push(fila);
   });
 
   if (!valido) {
-    document.getElementById('errorRutas').textContent = 'El nombre de la ruta es obligatorio en todas las filas.';
+    document.getElementById('errorRutas').textContent = 'Nombre, KM, Origen y Destino son obligatorios en todas las filas.';
     document.getElementById('errorRutas').style.display = 'block';
     return;
   }
