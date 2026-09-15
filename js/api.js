@@ -33,7 +33,10 @@ async function gasCall(action, params = {}) {
       clearTimeout(timeoutId);
       if (!res.ok) {
         if (GAS_STATUS_REINTENTABLES.includes(res.status) && intento < GAS_MAX_REINTENTOS) {
-          await esperar_(GAS_ESPERA_BASE_MS * (intento + 1));
+          // 429 = cuota de Sheets agotada por minuto — esperar el resto del minuto,
+          // no unos pocos segundos, porque reintentar rápido solo empeora el atasco.
+          const espera = res.status === 429 ? 20000 * (intento + 1) : GAS_ESPERA_BASE_MS * (intento + 1);
+          await esperar_(espera);
           continue;
         }
         throw new Error('Error de red: ' + res.status);
@@ -41,7 +44,7 @@ async function gasCall(action, params = {}) {
       return await res.json();
     } catch (e) {
       clearTimeout(timeoutId);
-      ultimoError = e.name === 'AbortError' ? new Error('Tiempo de espera agotado (30s) — Google no respondió.') : e;
+      ultimoError = e.name === 'AbortError' ? new Error('Tiempo de espera agotado (90s) — Google no respondió.') : e;
       if (intento < GAS_MAX_REINTENTOS) {
         await esperar_(GAS_ESPERA_BASE_MS * (intento + 1));
         continue;
