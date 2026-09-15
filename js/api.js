@@ -59,62 +59,59 @@ async function gasCall(action, params = {}) {
 // Cualquier respuesta de Apps Script que tarde más de 1-2s en generarse falla
 // de forma intermitente en la capa de entrega interna de Google
 // (script.googleusercontent.com/macros/echo devuelve 404 aunque la ejecución
-// haya terminado bien) — sin importar qué tan chica sea esa respuesta, y esto
-// pasa tanto en pedidos HTTP como en triggers. Por eso NO dependemos de que
-// esa respuesta llegue: GAS deja la URL vigente escrita en una planilla
-// "puntero" (compartida, vía Sheets export CSV — una entrega mucho más
-// robusta) y acá la leemos directo. Si la respuesta de GAS sí llega
-// (a veces pasa), la usamos directo y nos ahorramos ese paso.
-const PUNTERO_DM_CSV_URL = 'https://docs.google.com/spreadsheets/d/1CcAOABZiFXyLr_0-RUXYQVGKFrgDHsIYQc_vu6jzpRs/export?format=csv&gid=0';
+// haya terminado bien) — sin importar qué tan chica sea esa respuesta. Y el
+// archivo de Drive que probamos como alternativa tampoco sirve: su link de
+// descarga no manda headers CORS, así que el navegador bloquea leerlo con
+// fetch() aunque el archivo esté público. Por eso los datos van directo en
+// celdas de una planilla (partidos, porque una celda admite ~50.000
+// caracteres) — el export CSV de Sheets sí manda CORS correctamente.
+const DATOS_MAESTROS_CSV_URL = 'https://docs.google.com/spreadsheets/d/1CcAOABZiFXyLr_0-RUXYQVGKFrgDHsIYQc_vu6jzpRs/export?format=csv&gid=0';
+
+function reconstruirJsonDesdeCsv_(csvTexto) {
+  // Cada línea es UNA celda (una sola columna) — puede venir entre comillas
+  // con comillas internas duplicadas (escape RFC4180) porque el JSON tiene
+  // muchas comillas propias. Se saca el wrapping y se desduplican, y se
+  // concatenan las líneas en orden para reconstruir el JSON completo.
+  const lineas = csvTexto.split('\n');
+  let resultado = '';
+  for (let linea of lineas) {
+    linea = linea.replace(/\r$/, '');
+    if (linea === '') continue;
+    if (linea.charAt(0) === '"' && linea.charAt(linea.length - 1) === '"') {
+      linea = linea.slice(1, -1).replace(/""/g, '"');
+    }
+    resultado += linea;
+  }
+  return resultado;
+}
 
 async function gasCallDatosMaestros(onProgreso) {
   if (onProgreso) onProgreso('Preparando datos maestros...');
 
-  let urlDatos = '';
-
-  // Camino rápido: si la respuesta de GAS llega bien, ya tenemos la URL.
-  try {
-    const resp = await gasCall('getUrlDatosMaestros');
-    if (resp && resp.ok === false) return resp;
-    if (resp && resp.url) urlDatos = resp.url;
-  } catch (e) { /* seguimos por la vía de respaldo */ }
-
-  // Camino de respaldo: leer la URL vigente directo de la planilla puntero.
-  if (!urlDatos) {
-    if (onProgreso) onProgreso('Buscando datos maestros...');
-    for (let intento = 0; intento < 40 && !urlDatos; intento++) { // hasta ~2 min
-      try {
-        const csvRes = await fetch(PUNTERO_DM_CSV_URL + '&_=' + Date.now(), { cache: 'no-store' });
-        if (csvRes.ok) {
-          const texto = (await csvRes.text()).trim().replace(/^"|"$/g, '');
-          if (texto && texto.indexOf('http') === 0) urlDatos = texto;
-        }
-      } catch (e) { /* reintentar */ }
-      if (!urlDatos) await esperar_(3000);
-    }
-  }
-
-  if (!urlDatos) {
-    return { ok: false, error: 'Los datos maestros están tardando demasiado en prepararse. Probá de nuevo en un momento.' };
-  }
+  // No importa si esta respuesta llega bien al navegador — solo dispara la
+  // regeneración del lado de GAS si hace falta. Los datos en sí se leen
+  // siempre de la planilla, más abajo.
+  try { await gasCall('asegurarDatosMaestrosFrescos'); } catch (e) { /* seguimos igual */ }
 
   if (onProgreso) onProgreso('Descargando datos maestros...');
 
-  // Un archivo de Drive recién creado puede tardar unos segundos en quedar
-  // descargable públicamente (404 transitorio) — reintentar cubre ese caso.
-  let res, intentosDescarga = 0;
-  do {
-    res = await fetch(urlDatos, { cache: 'no-store' });
-    if (res.ok) break;
-    intentosDescarga++;
-    if (intentosDescarga <= 3) await esperar_(3000);
-  } while (!res.ok && intentosDescarga <= 3);
-
-  if (!res.ok) {
-    return { ok: false, error: 'No se pudo descargar el archivo de datos maestros (' + res.status + ')' };
+  for (let intento = 0; intento < 40; intento++) { // hasta ~2 minutos de espera
+    try {
+      const csvRes = await fetch(DATOS_MAESTROS_CSV_URL + '&_=' + Date.now(), { cache: 'no-store' });
+      if (csvRes.ok) {
+        const jsonTexto = reconstruirJsonDesdeCsv_(await csvRes.text());
+        if (jsonTexto) {
+          try {
+            const datos = JSON.parse(jsonTexto);
+            return Object.assign({ ok: true }, datos);
+          } catch (eParse) { /* todavía no terminó de escribirse, reintentar */ }
+        }
+      }
+    } catch (e) { /* reintentar */ }
+    await esperar_(3000);
   }
-  const datos = await res.json();
-  return Object.assign({ ok: true }, datos);
+
+  return { ok: false, error: 'Los datos maestros están tardando demasiado en prepararse. Probá de nuevo en un momento.' };
 }
 
 function getToken()   { return localStorage.getItem('troncales_token'); }
