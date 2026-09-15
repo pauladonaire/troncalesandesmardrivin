@@ -68,7 +68,18 @@ async function gasCallDatosMaestros(onProgreso) {
   if (resp && resp.ok === false) return resp;
 
   if (onProgreso) onProgreso('Descargando datos maestros...');
-  const res = await fetch(resp.url, { cache: 'no-store' });
+
+  // Un archivo de Drive recién creado puede tardar unos segundos en quedar
+  // descargable públicamente (404 transitorio) — reintentar cubre ese caso,
+  // que solo ocurre la primera vez que se regenera el cache (cada 6hs).
+  let res, intentos = 0;
+  do {
+    res = await fetch(resp.url, { cache: 'no-store' });
+    if (res.ok) break;
+    intentos++;
+    if (intentos <= 3) await esperar_(3000);
+  } while (!res.ok && intentos <= 3);
+
   if (!res.ok) {
     return { ok: false, error: 'No se pudo descargar el archivo de datos maestros (' + res.status + ')' };
   }
