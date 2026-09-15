@@ -55,30 +55,40 @@ async function gasCall(action, params = {}) {
 }
 
 // Los datos maestros (direcciones, tripulantes, flota, socios, rutas, arrastres,
-// esquemas de costo/ingreso) son demasiado grandes/lentos de generar como para
-// que Apps Script los entregue de forma confiable en la respuesta de doPost —
-// esas respuestas fallan de forma intermitente en la capa de entrega interna
-// de Google (script.googleusercontent.com/macros/echo devuelve 404 aunque la
-// ejecución haya terminado bien), sin importar cuánto se las divida.
-// En cambio: le pedimos a GAS un link de descarga (respuesta minúscula, rápida,
-// nunca pisa ese problema) y bajamos el archivo real directo desde Drive.
+// esquemas de costo/ingreso) son lentos de generar (varias lecturas a Sheets).
+// Cualquier respuesta de Apps Script que tarde más de 1-2s en generarse falla
+// de forma intermitente en la capa de entrega interna de Google
+// (script.googleusercontent.com/macros/echo devuelve 404 aunque la ejecución
+// haya terminado bien) — sin importar qué tan chica sea esa respuesta. Por
+// eso GAS nunca hace el trabajo pesado dentro de un pedido HTTP: lo dispara
+// en segundo plano (un trigger) y cada pedido nuestro es chico Y rápido
+// ("¿ya está?"). Acá hacemos polling hasta que esté listo, y recién ahí
+// bajamos el archivo real directo desde Drive.
 async function gasCallDatosMaestros(onProgreso) {
   if (onProgreso) onProgreso('Preparando datos maestros...');
-  const resp = await gasCall('getUrlDatosMaestros');
-  if (resp && resp.ok === false) return resp;
+
+  let resp;
+  for (let intento = 0; intento < 40; intento++) { // hasta ~2 minutos de espera
+    resp = await gasCall('getUrlDatosMaestros');
+    if (resp && resp.ok === false) return resp;
+    if (resp && resp.listo) break;
+    await esperar_(3000);
+  }
+  if (!resp || !resp.listo) {
+    return { ok: false, error: 'Los datos maestros están tardando demasiado en prepararse. Probá de nuevo en un momento.' };
+  }
 
   if (onProgreso) onProgreso('Descargando datos maestros...');
 
   // Un archivo de Drive recién creado puede tardar unos segundos en quedar
-  // descargable públicamente (404 transitorio) — reintentar cubre ese caso,
-  // que solo ocurre la primera vez que se regenera el cache (cada 6hs).
-  let res, intentos = 0;
+  // descargable públicamente (404 transitorio) — reintentar cubre ese caso.
+  let res, intentosDescarga = 0;
   do {
     res = await fetch(resp.url, { cache: 'no-store' });
     if (res.ok) break;
-    intentos++;
-    if (intentos <= 3) await esperar_(3000);
-  } while (!res.ok && intentos <= 3);
+    intentosDescarga++;
+    if (intentosDescarga <= 3) await esperar_(3000);
+  } while (!res.ok && intentosDescarga <= 3);
 
   if (!res.ok) {
     return { ok: false, error: 'No se pudo descargar el archivo de datos maestros (' + res.status + ')' };
