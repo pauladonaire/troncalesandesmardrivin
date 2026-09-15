@@ -54,29 +54,26 @@ async function gasCall(action, params = {}) {
   throw ultimoError;
 }
 
-// getDatosMaestros devuelve TODO junto (direcciones, tripulantes, flota, socios,
-// rutas, arrastres, esquemas de costo/ingreso) en una sola respuesta — se volvió
-// demasiado grande para que Apps Script la entregue de forma confiable a través
-// del endpoint interno de googleusercontent.com (ni partida en 2 alcanzó). Se
-// pide de a una parte por vez (secuencial, no en paralelo, para no exigir de más
-// a la cuota de ejecuciones de Apps Script) y se combina acá — más lento, pero
-// cada pedido es del mismo tamaño que getDatosRutas/getDatosArrastres, que sí
-// funcionan siempre.
-const GAS_PARTES_DATOS_MAESTROS = [
-  'getParteDirecciones', 'getParteTripulantes', 'getParteFlota', 'getParteSocios',
-  'getParteRutas', 'getParteArrastres', 'getParteEsquemasCostos', 'getParteEsquemasIngresos'
-];
-
+// Los datos maestros (direcciones, tripulantes, flota, socios, rutas, arrastres,
+// esquemas de costo/ingreso) son demasiado grandes/lentos de generar como para
+// que Apps Script los entregue de forma confiable en la respuesta de doPost —
+// esas respuestas fallan de forma intermitente en la capa de entrega interna
+// de Google (script.googleusercontent.com/macros/echo devuelve 404 aunque la
+// ejecución haya terminado bien), sin importar cuánto se las divida.
+// En cambio: le pedimos a GAS un link de descarga (respuesta minúscula, rápida,
+// nunca pisa ese problema) y bajamos el archivo real directo desde Drive.
 async function gasCallDatosMaestros(onProgreso) {
-  const combinado = { ok: true };
-  for (let i = 0; i < GAS_PARTES_DATOS_MAESTROS.length; i++) {
-    const accion = GAS_PARTES_DATOS_MAESTROS[i];
-    if (onProgreso) onProgreso(i + 1, GAS_PARTES_DATOS_MAESTROS.length);
-    const parte = await gasCall(accion);
-    if (parte && parte.ok === false) return parte;
-    Object.assign(combinado, parte);
+  if (onProgreso) onProgreso('Preparando datos maestros...');
+  const resp = await gasCall('getUrlDatosMaestros');
+  if (resp && resp.ok === false) return resp;
+
+  if (onProgreso) onProgreso('Descargando datos maestros...');
+  const res = await fetch(resp.url, { cache: 'no-store' });
+  if (!res.ok) {
+    return { ok: false, error: 'No se pudo descargar el archivo de datos maestros (' + res.status + ')' };
   }
-  return combinado;
+  const datos = await res.json();
+  return Object.assign({ ok: true }, datos);
 }
 
 function getToken()   { return localStorage.getItem('troncales_token'); }
