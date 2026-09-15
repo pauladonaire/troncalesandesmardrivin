@@ -55,14 +55,6 @@ function detenerLoader() {
   if (loaderInterval) { clearInterval(loaderInterval); loaderInterval = null; }
 }
 
-async function getDatosMaestrosConTimeout() {
-  return Promise.race([
-    gasCallDatosMaestros(),
-    new Promise((_, reject) => setTimeout(() =>
-      reject(new Error('Timeout: el servidor tardó demasiado. Recargá la página para reintentar.')), 45000))
-  ]);
-}
-
 async function refrescarDatosSilencioso() {
   try {
     const res = await gasCallDatosMaestros();
@@ -99,7 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('contenido').style.display  = 'none';
     iniciarLoaderConFeedback();
     try {
-      const res = await getDatosMaestrosConTimeout();
+      const res = await gasCallDatosMaestros();
       detenerLoader();
       if (res.ok === false) throw new Error(res.error || 'Error al cargar datos maestros');
       window.DATOS = res;
