@@ -1,6 +1,6 @@
 // api.js — Wrapper fetch hacia GAS Web App + utilidades de sesión
 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxqymlzy5_IUBkgXEDIppgg7QG4kNzrlmlGqriiFbBoWJPookVJMHnSSt-JCyVGDx8AFg/exec';  // reemplazar con la URL real al deployar
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxe5WUMBLMOYhw-zdYOqE74Vd_6ZktHfrslEXpBgSxdmDpzfvcdhMy-3BlFZvDRx5IIjg/exec';  // deployment nuevo (el anterior venía acumulando fallas de entrega tras 43 versiones)
 
 // Códigos de error transitorios (cuota de ejecuciones simultáneas de Apps Script,
 // caídas puntuales de la infraestructura de Google, etc.) — vale la pena reintentar.
