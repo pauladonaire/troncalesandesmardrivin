@@ -59,22 +59,42 @@ async function gasCall(action, params = {}) {
 // Cualquier respuesta de Apps Script que tarde más de 1-2s en generarse falla
 // de forma intermitente en la capa de entrega interna de Google
 // (script.googleusercontent.com/macros/echo devuelve 404 aunque la ejecución
-// haya terminado bien) — sin importar qué tan chica sea esa respuesta. Por
-// eso GAS nunca hace el trabajo pesado dentro de un pedido HTTP: lo dispara
-// en segundo plano (un trigger) y cada pedido nuestro es chico Y rápido
-// ("¿ya está?"). Acá hacemos polling hasta que esté listo, y recién ahí
-// bajamos el archivo real directo desde Drive.
+// haya terminado bien) — sin importar qué tan chica sea esa respuesta, y esto
+// pasa tanto en pedidos HTTP como en triggers. Por eso NO dependemos de que
+// esa respuesta llegue: GAS deja la URL vigente escrita en una planilla
+// "puntero" (compartida, vía Sheets export CSV — una entrega mucho más
+// robusta) y acá la leemos directo. Si la respuesta de GAS sí llega
+// (a veces pasa), la usamos directo y nos ahorramos ese paso.
+const PUNTERO_DM_CSV_URL = 'https://docs.google.com/spreadsheets/d/1CcAOABZiFXyLr_0-RUXYQVGKFrgDHsIYQc_vu6jzpRs/export?format=csv&gid=0';
+
 async function gasCallDatosMaestros(onProgreso) {
   if (onProgreso) onProgreso('Preparando datos maestros...');
 
-  let resp;
-  for (let intento = 0; intento < 40; intento++) { // hasta ~2 minutos de espera
-    resp = await gasCall('getUrlDatosMaestros');
+  let urlDatos = '';
+
+  // Camino rápido: si la respuesta de GAS llega bien, ya tenemos la URL.
+  try {
+    const resp = await gasCall('getUrlDatosMaestros');
     if (resp && resp.ok === false) return resp;
-    if (resp && resp.listo) break;
-    await esperar_(3000);
+    if (resp && resp.url) urlDatos = resp.url;
+  } catch (e) { /* seguimos por la vía de respaldo */ }
+
+  // Camino de respaldo: leer la URL vigente directo de la planilla puntero.
+  if (!urlDatos) {
+    if (onProgreso) onProgreso('Buscando datos maestros...');
+    for (let intento = 0; intento < 40 && !urlDatos; intento++) { // hasta ~2 min
+      try {
+        const csvRes = await fetch(PUNTERO_DM_CSV_URL + '&_=' + Date.now(), { cache: 'no-store' });
+        if (csvRes.ok) {
+          const texto = (await csvRes.text()).trim().replace(/^"|"$/g, '');
+          if (texto && texto.indexOf('http') === 0) urlDatos = texto;
+        }
+      } catch (e) { /* reintentar */ }
+      if (!urlDatos) await esperar_(3000);
+    }
   }
-  if (!resp || !resp.listo) {
+
+  if (!urlDatos) {
     return { ok: false, error: 'Los datos maestros están tardando demasiado en prepararse. Probá de nuevo en un momento.' };
   }
 
@@ -84,7 +104,7 @@ async function gasCallDatosMaestros(onProgreso) {
   // descargable públicamente (404 transitorio) — reintentar cubre ese caso.
   let res, intentosDescarga = 0;
   do {
-    res = await fetch(resp.url, { cache: 'no-store' });
+    res = await fetch(urlDatos, { cache: 'no-store' });
     if (res.ok) break;
     intentosDescarga++;
     if (intentosDescarga <= 3) await esperar_(3000);
