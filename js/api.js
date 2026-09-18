@@ -12,14 +12,30 @@ const GAS_TIMEOUT_MS           = 90000; // corta la espera si Google no responde
 // más que 30s. Con 2 reintentos, el peor caso ronda los 4-5 minutos — mucho, pero
 // preferible a cortar la conexión justo antes de que Google termine de responder.
 
+// SOLO estas acciones (de lectura, sin efectos secundarios) se reintentan
+// automáticamente. Reintentar una acción que ESCRIBE algo (crear un plan en
+// Driv.in, subir un Excel, agregar una fila) es peligroso: si la respuesta se
+// pierde en el camino (el bug de entrega de Apps Script) pero el servidor SÍ
+// llegó a hacer el trabajo, reintentar dispara la MISMA acción de nuevo y
+// duplica lo que sea que haya creado — esto es lo que estaba generando planes
+// repetidos en Driv.in. Para todo lo que no está en esta lista, un solo
+// intento: si falla, se avisa el error en vez de arriesgar una duplicación.
+const GAS_ACCIONES_REINTENTABLES = new Set([
+  'getDatosMaestros', 'asegurarDatosMaestrosFrescos',
+  'getParteDirecciones', 'getParteTripulantes', 'getParteFlota', 'getParteSocios',
+  'getParteRutas', 'getParteArrastres', 'getParteEsquemasCostos', 'getParteEsquemasIngresos',
+  'getDatosRutas', 'getDatosArrastres', 'getViajesHistorico', 'getUsuarios'
+]);
+
 function esperar_(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 async function gasCall(action, params = {}) {
   const token = getToken();
   const body  = JSON.stringify({ action, token, ...params });
+  const maxIntentos = GAS_ACCIONES_REINTENTABLES.has(action) ? GAS_MAX_REINTENTOS : 0;
 
   let ultimoError;
-  for (let intento = 0; intento <= GAS_MAX_REINTENTOS; intento++) {
+  for (let intento = 0; intento <= maxIntentos; intento++) {
     const controller = new AbortController();
     const timeoutId  = setTimeout(() => controller.abort(), GAS_TIMEOUT_MS);
     try {
@@ -32,7 +48,7 @@ async function gasCall(action, params = {}) {
       });
       clearTimeout(timeoutId);
       if (!res.ok) {
-        if (GAS_STATUS_REINTENTABLES.includes(res.status) && intento < GAS_MAX_REINTENTOS) {
+        if (GAS_STATUS_REINTENTABLES.includes(res.status) && intento < maxIntentos) {
           // 429 = cuota de Sheets agotada por minuto — esperar el resto del minuto,
           // no unos pocos segundos, porque reintentar rápido solo empeora el atasco.
           const espera = res.status === 429 ? 20000 * (intento + 1) : GAS_ESPERA_BASE_MS * (intento + 1);
@@ -45,7 +61,7 @@ async function gasCall(action, params = {}) {
     } catch (e) {
       clearTimeout(timeoutId);
       ultimoError = e.name === 'AbortError' ? new Error('Tiempo de espera agotado (90s) — Google no respondió.') : e;
-      if (intento < GAS_MAX_REINTENTOS) {
+      if (intento < maxIntentos) {
         await esperar_(GAS_ESPERA_BASE_MS * (intento + 1));
         continue;
       }
@@ -163,10 +179,15 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
-async function handleLogout() {
+function handleLogout() {
+  // No esperamos la respuesta de red para cerrar sesión — lo que importa de
+  // verdad es borrar la sesión LOCAL ya. Avisarle a GAS que invalide el
+  // token del lado del servidor es un plus (para que no quede "viva" hasta
+  // que expire sola), pero no debe hacer esperar al usuario ni un segundo,
+  // y menos aún reintentar si la respuesta se pierde en el camino.
   const token = getToken();
   if (token) {
-    try { await gasCall('logout'); } catch (e) { /* ignorar errores de red al cerrar sesión */ }
+    gasCall('logout').catch(() => { /* ignorar errores de red al cerrar sesión */ });
   }
   clearSession();
   window.location.href = 'index.html';
