@@ -3,9 +3,18 @@
 // INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo de script
 //              con el nombre "Aker" y pegar este contenido.
 //
-// Integración MANUAL con Aker Control (POST /ws/itinerario/import).
-// No se dispara desde doPost ni desde ningún trigger — se corre a mano
-// desde este editor, función por función, fila por fila.
+// Integración con Aker Control (POST /ws/itinerario/import).
+//
+// Envío AUTOMÁTICO: desde la fila AKER_FILA_INICIAL (8788) en adelante,
+// todo viaje nuevo que se registra en ViajesTotalesTroncales (vía
+// subirExcelADrive o crearPlanillaViajes) se manda solo a Aker, real, en
+// segundo plano por un trigger (ver programarEnvioAkerEnSegundoPlano_ /
+// procesarColaAker_ más abajo). Las filas viejas (<= 8788) nunca se tocan
+// solas. Lo que no se pueda enviar (falta un dato, Aker lo rechaza, etc.)
+// queda igual registrado en LogsAker con el error, para revisar a mano.
+//
+// probarEnvioAkerFila() sigue disponible para pruebas puntuales manuales,
+// fila por fila, con o sin simulación — se corre a mano desde este editor.
 //
 // Requiere 2 propiedades del script (Configuración del proyecto >
 // Propiedades del script), igual que SERVICE_ACCOUNT_JSON:
@@ -15,6 +24,102 @@
 
 var AKER_LOG_SHEET_ID = '1ke5jO5ODxMrKyR7EsVAJOiSvv7Vclf_2JCAyVyBK8Dw';
 var AKER_LOG_TAB       = 'LogsAker';
+
+// ── Envío automático (a partir de la fila 8788) ──────────────────────────
+// Desde acá en adelante, cada viaje nuevo que se registra en
+// ViajesTotalesTroncales se intenta enviar a Aker DE VERDAD (sin
+// simulación), en segundo plano vía un trigger — no adentro de
+// subirExcelADrive/crearPlanillaViajes, para no atrasar esa respuesta.
+// Las filas <= AKER_FILA_INICIAL (históricas) nunca se tocan solas.
+var AKER_FILA_INICIAL    = 8788;
+var AKER_CURSOR_PROP     = 'AKER_ULTIMA_FILA_ENVIADA';
+var AKER_MAX_POR_CORRIDA = 25; // por ejecución de trigger, para no pasarse del límite de tiempo de GAS
+
+/**
+ * Se llama después de registrar viajes nuevos en el Sheet. Programa (si no
+ * hay ya uno programado) un trigger de una sola vez que envía a Aker todo
+ * lo pendiente desde AKER_ULTIMA_FILA_ENVIADA en adelante.
+ */
+function programarEnvioAkerEnSegundoPlano_() {
+  var yaProgramado = ScriptApp.getProjectTriggers().some(function(t) {
+    return t.getHandlerFunction() === 'procesarColaAker_';
+  });
+  if (yaProgramado) return;
+  ScriptApp.newTrigger('procesarColaAker_').timeBased().after(15000).create();
+}
+
+function limpiarTriggersAker_() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'procesarColaAker_') ScriptApp.deleteTrigger(t);
+  });
+}
+
+/**
+ * Procesa la cola de envío automático a Aker: manda cada fila pendiente de
+ * ViajesTotalesTroncales (desde el cursor guardado en Propiedades del
+ * script, arrancando en AKER_FILA_INICIAL) de a lotes de
+ * AKER_MAX_POR_CORRIDA, real (no simulado). Si un itinerario no se puede
+ * armar o Aker lo rechaza, el intento queda igual registrado en LogsAker
+ * con el error — no se reintenta solo, pero tampoco frena a los demás.
+ * Si sobra trabajo, se reprograma a sí mismo para seguir en unos segundos.
+ */
+function procesarColaAker_() {
+  limpiarTriggersAker_();
+
+  var props  = PropertiesService.getScriptProperties();
+  var cursor = Number(props.getProperty(AKER_CURSOR_PROP)) || AKER_FILA_INICIAL;
+
+  var cfg, values;
+  try {
+    cfg    = CONFIG.SHEETS.VIAJES;
+    values = sheetsRead_(cfg.id, cfg.tab + '!A:DA');
+  } catch(eRead) {
+    console.error('procesarColaAker_: error leyendo ViajesTotalesTroncales: ' + eRead.message);
+    // Sin borrar el cursor — se reintenta en la próxima carga (o corrida manual).
+    return;
+  }
+  if (!values || values.length < 2) return;
+
+  var headers    = values[0];
+  var ultimaFila = values.length; // values[0] = fila 1 (encabezados)
+  if (cursor >= ultimaFila) return; // nada nuevo que mandar
+
+  var desde = cursor + 1;
+  var hasta = Math.min(ultimaFila, desde + AKER_MAX_POR_CORRIDA - 1);
+
+  for (var fila = desde; fila <= hasta; fila++) {
+    var row = values[fila - 1];
+    try {
+      var payload = construirPayloadItinerarioAker_(headers, row, {});
+      enviarPayloadAker_(payload, fila);
+    } catch(eBuild) {
+      logIntentoAker_({ ok: false, filaSheet: fila, error: 'Error armando payload: ' + eBuild.message });
+    }
+  }
+
+  props.setProperty(AKER_CURSOR_PROP, String(hasta));
+
+  if (hasta < ultimaFila) {
+    ScriptApp.newTrigger('procesarColaAker_').timeBased().after(5000).create();
+  }
+}
+
+/**
+ * Diagnóstico manual: cuántas filas quedan pendientes de mandar a Aker
+ * ahora mismo, sin procesarlas. Correr desde el editor si hace falta
+ * revisar el estado de la cola.
+ */
+function verEstadoColaAker() {
+  var props  = PropertiesService.getScriptProperties();
+  var cursor = Number(props.getProperty(AKER_CURSOR_PROP)) || AKER_FILA_INICIAL;
+  var cfg    = CONFIG.SHEETS.VIAJES;
+  var values = sheetsRead_(cfg.id, cfg.tab + '!A:A'); // solo col A, alcanza para contar filas
+  var ultimaFila = values.length;
+  var pendientes = Math.max(0, ultimaFila - cursor);
+  var msg = 'Cursor actual: fila ' + cursor + ' | Última fila con datos: ' + ultimaFila + ' | Pendientes: ' + pendientes;
+  console.log(msg);
+  return msg;
+}
 
 /**
  * ── PUNTO DE ENTRADA MANUAL ──

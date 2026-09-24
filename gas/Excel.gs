@@ -146,6 +146,12 @@ function registrarViajesEnSheet_(viajes, planDatos, emailUsuario) {
 
   if (rows.length > 0) {
     sheetsAppend_(cfg.id, cfg.tab, rows);
+    // Dispara el envío automático a Aker de las filas recién agregadas.
+    // Corre en un trigger aparte (no acá adentro) para no atrasar esta
+    // respuesta — la fila 8788 es donde arranca este envío automático, un
+    // Excel con muchos viajes tardaría demasiado si se mandara a Aker uno
+    // por uno antes de contestarle al frontend.
+    programarEnvioAkerEnSegundoPlano_();
   }
 }
 
