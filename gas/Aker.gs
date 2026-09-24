@@ -122,6 +122,33 @@ function verEstadoColaAker() {
 }
 
 /**
+ * Diagnóstico manual: muestra en el log qué valor lee el código para los
+ * campos clave de una fila puntual de ViajesTotalesTroncales — tanto por
+ * nombre de columna (header) como por posición fija. Útil si
+ * construirPayloadItinerarioAker_ dice que falta un dato y no se entiende
+ * por qué (típicamente: el header de la fila 1 no coincide exacto con el
+ * texto esperado, o la fila es de antes de que existiera esa columna).
+ */
+function TEST_inspeccionarFilaViajes() {
+  var FILA = 8789; // ← cambiar por la fila a inspeccionar
+
+  var cfg    = CONFIG.SHEETS.VIAJES;
+  var values = sheetsRead_(cfg.id, cfg.tab + '!A:DA');
+  var headers = values[0];
+  var row     = values[FILA - 1];
+
+  console.log('headers.length=' + headers.length + ' | row.length=' + (row ? row.length : 'undefined (fila fuera de rango, hay ' + (values.length - 1) + ' filas de datos)'));
+  if (!row) return;
+
+  ['Código de despacho', 'Fecha Maxima de Entrega', 'Fecha Inicio Viaje', 'Ruta Maestra', 'Código de dirección']
+    .forEach(function(c) {
+      var i = headers.indexOf(c);
+      console.log(c + ' → índice header: ' + i + ' | valor: ' + JSON.stringify(i === -1 ? undefined : row[i]));
+    });
+  console.log('row[103] (posición fija, columna CZ): ' + JSON.stringify(row[103]));
+}
+
+/**
  * ── PUNTO DE ENTRADA MANUAL ──
  * Editá los valores de acá abajo y ejecutá esta función desde el editor
  * (▶ Ejecutar, con "probarEnvioAkerFila" seleccionada en el desplegable).
@@ -230,6 +257,13 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
   var nota             = val('Texto 8');
   var rutaMaestra      = val('Ruta Maestra');
   var fechaInicioCol   = val('Fecha Inicio Viaje'); // columna CZ — ver Excel.gs registrarViajesEnSheet_
+  if (!fechaInicioCol && row.length > 103) {
+    // Respaldo por posición fija: "Fecha Inicio Viaje" es SIEMPRE la 4ta
+    // columna de metadatos que agrega registrarViajesEnSheet_ (después de
+    // las 100 columnas del Excel) → índice 103 (columna CZ), sin importar
+    // si el texto del header en la fila 1 tiene alguna diferencia.
+    fechaInicioCol = row[103] != null ? String(row[103]) : '';
+  }
 
   if (!codigoDespacho)  throw new Error('La fila no tiene Código de despacho');
   if (!fechaMaxEntrega) throw new Error('La fila no tiene Fecha Máxima de Entrega — no se puede armar fecha_fin');
