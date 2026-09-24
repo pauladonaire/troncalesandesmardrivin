@@ -1,0 +1,214 @@
+<!-- ============================================================
+     ARCHIVO GAS: dashboard.css.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "dashboard.css" y pegar este contenido
+     ============================================================ -->
+<style>
+  .app-layout {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ──────────────────────────────────────── */
+  .sidebar {
+    width: 230px;
+    min-height: 100vh;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .sidebar-brand {
+    padding: 20px 18px 16px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .sidebar-brand .brand-name {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--color-primary);
+    letter-spacing: -0.3px;
+  }
+
+  .sidebar-brand .brand-sub {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: 12px 10px;
+    overflow-y: auto;
+  }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 10px 8px 5px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border-radius: var(--radius);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background var(--transition), color var(--transition);
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+
+  .nav-item:hover {
+    background: rgba(1,254,255,0.08);
+    color: var(--color-white);
+  }
+
+  .nav-item.active {
+    background: rgba(1,254,255,0.12);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .sidebar-footer {
+    padding: 14px 10px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+  }
+
+  .user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: var(--color-black);
+    font-weight: 800;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .user-details { overflow: hidden; }
+
+  .user-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-white);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-role {
+    font-size: 10px;
+    color: var(--color-text-muted);
+  }
+
+  /* ── Main content ─────────────────────────────────── */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .page-header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--color-surface);
+  }
+
+  .page-header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-white);
+  }
+
+  .page-body {
+    padding: 24px 28px;
+    flex: 1;
+  }
+
+  /* ── Panels ───────────────────────────────────────── */
+  .panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  /* ── Sync buttons ─────────────────────────────────── */
+  .sync-btn-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(46,61,80,0.5);
+  }
+  .sync-btn-row:last-child { border-bottom: none; }
+
+  .sync-btn-label {
+    font-size: 13px;
+    color: var(--color-white);
+    font-weight: 500;
+  }
+
+  .sync-btn-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sync-result-badge {
+    display: none;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-success);
+    background: rgba(0,201,122,0.12);
+    border: 1px solid rgba(0,201,122,0.25);
+    border-radius: 20px;
+    padding: 2px 10px;
+  }
+  .sync-result-badge.visible { display: inline-block; }
+
+  /* ── Password change ──────────────────────────────── */
+  .password-form { max-width: 380px; }
+  .password-form .form-group { margin-bottom: 14px; }
+
+  /* ── Responsive ───────────────────────────────────── */
+  @media (max-width: 768px) {
+    .sidebar { width: 60px; }
+    .sidebar-brand .brand-name,
+    .sidebar-brand .brand-sub,
+    .nav-item span,
+    .nav-section-label,
+    .user-details { display: none; }
+    .nav-item { justify-content: center; padding: 10px; }
+    .page-body { padding: 16px; }
+  }
+</style>

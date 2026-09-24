@@ -1,0 +1,208 @@
+<!-- ============================================================
+     ARCHIVO GAS: admin.js.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "admin.js" y pegar este contenido
+     ============================================================ -->
+<script>
+  var SESSION_ADM = null;
+  var USUARIOS_DATA = [];
+
+  document.addEventListener('DOMContentLoaded', function() {
+    try { SESSION_ADM = JSON.parse(document.getElementById('sessionData').textContent); } catch(e) {}
+    if (!SESSION_ADM) SESSION_ADM = getSession();
+    if (!SESSION_ADM || SESSION_ADM.rol !== 'ADMIN_GENERAL') {
+      navigateTo('dashboard');
+      return;
+    }
+    renderAdminUser();
+    cargarUsuarios();
+    initAdminUI();
+  });
+
+  function renderAdminUser() {
+    var el = document.getElementById('sidebarUserName');
+    if (el) el.textContent = SESSION_ADM.nombre_completo;
+    var roleEl = document.getElementById('sidebarUserRole');
+    if (roleEl) roleEl.textContent = 'Admin General';
+    var avatarEl = document.getElementById('sidebarAvatar');
+    if (avatarEl) avatarEl.textContent = SESSION_ADM.iniciales || '?';
+    var logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    var backBtn = document.getElementById('btnBackDashboard');
+    if (backBtn) backBtn.addEventListener('click', function() { navigateTo('dashboard'); });
+  }
+
+  async function cargarUsuarios() {
+    var tbody  = document.getElementById('usersTableBody');
+    var loader = document.getElementById('usersLoader');
+    showEl(loader);
+    try {
+      USUARIOS_DATA = await gasCall('getUsuarios', getToken());
+      renderTabla(USUARIOS_DATA);
+    } catch(err) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error al cargar usuarios: ' + escapeHtml(err.message || err) + '</td></tr>';
+    } finally {
+      hideEl(loader);
+    }
+  }
+
+  function renderTabla(data) {
+    var tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>No hay usuarios registrados.</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(function(u) {
+      var rolClass = 'role-' + u.rol;
+      return '<tr data-email="' + escapeHtml(u.email) + '">'
+        + '<td>' + escapeHtml(u.nombre_completo) + '</td>'
+        + '<td>' + escapeHtml(u.email) + '</td>'
+        + '<td><span class="badge role-badge ' + rolClass + '">' + escapeHtml(u.rol) + '</span></td>'
+        + '<td><span class="badge ' + (u.activo ? 'badge-success' : 'badge-danger') + '">' + (u.activo ? 'Activo' : 'Inactivo') + '</span></td>'
+        + '<td>'
+        + '  <div class="row-actions">'
+        + '    <button class="btn btn-ghost btn-sm" onclick="abrirEditarUsuario(\'' + escapeHtml(u.email) + '\')">Editar</button>'
+        + '    <button class="toggle-btn ' + (u.activo ? 'on' : 'off') + '" onclick="toggleActivo(\'' + escapeHtml(u.email) + '\', ' + (u.activo ? 'false' : 'true') + ')" title="' + (u.activo ? 'Desactivar' : 'Activar') + '"></button>'
+        + '  </div>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function initAdminUI() {
+    // Búsqueda en tiempo real
+    var searchInput = document.getElementById('userSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        var q = this.value.toLowerCase().trim();
+        if (!q) { renderTabla(USUARIOS_DATA); return; }
+        var filtered = USUARIOS_DATA.filter(function(u) {
+          return (u.nombre_completo || '').toLowerCase().includes(q)
+              || (u.email || '').toLowerCase().includes(q);
+        });
+        renderTabla(filtered);
+      });
+    }
+
+    // Botón nuevo usuario
+    var btnNuevo = document.getElementById('btnNuevoUsuario');
+    if (btnNuevo) btnNuevo.addEventListener('click', function() { abrirModalNuevo(); });
+
+    // Cerrar modales al hacer clic fuera
+    document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+      overlay.addEventListener('click', function(e) {
+        if (e.target === this) cerrarModales();
+      });
+    });
+
+    // Formulario nuevo usuario
+    var formNuevo = document.getElementById('formNuevoUsuario');
+    if (formNuevo) formNuevo.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      await submitNuevoUsuario();
+    });
+
+    // Formulario editar usuario
+    var formEditar = document.getElementById('formEditarUsuario');
+    if (formEditar) formEditar.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      await submitEditarUsuario();
+    });
+  }
+
+  function abrirModalNuevo() {
+    document.getElementById('formNuevoUsuario').reset();
+    hideEl(document.getElementById('alertNuevo'));
+    document.getElementById('modalNuevo').classList.add('active');
+  }
+
+  function abrirEditarUsuario(email) {
+    var u = USUARIOS_DATA.find(function(x) { return x.email === email; });
+    if (!u) return;
+    document.getElementById('editEmail').value  = u.email;
+    document.getElementById('editNombre').value = u.nombre_completo;
+    document.getElementById('editRol').value    = u.rol;
+    document.getElementById('editEmailHidden').value = u.email;
+    hideEl(document.getElementById('alertEditar'));
+    document.getElementById('modalEditar').classList.add('active');
+  }
+
+  function cerrarModales() {
+    document.querySelectorAll('.modal-overlay').forEach(function(m) { m.classList.remove('active'); });
+  }
+
+  async function submitNuevoUsuario() {
+    var btn     = document.getElementById('btnGuardarNuevo');
+    var alertEl = document.getElementById('alertNuevo');
+    var datos = {
+      email:            document.getElementById('nuevoEmail').value.trim(),
+      nombre_completo:  document.getElementById('nuevoNombre').value.trim(),
+      password:         document.getElementById('nuevoPassword').value,
+      rol:              document.getElementById('nuevoRol').value
+    };
+
+    if (!datos.email || !datos.nombre_completo || !datos.password || !datos.rol) {
+      showAlert(alertEl, 'Todos los campos son obligatorios.', 'danger');
+      return;
+    }
+
+    setLoading(btn, true);
+    hideEl(alertEl);
+    try {
+      var res = await gasCall('createUsuario', getToken(), datos);
+      if (res && res.ok) {
+        cerrarModales();
+        cargarUsuarios();
+      } else {
+        showAlert(alertEl, (res && res.error) || 'Error al crear el usuario.', 'danger');
+      }
+    } catch(err) {
+      showAlert(alertEl, 'Error: ' + (err.message || err), 'danger');
+    } finally {
+      setLoading(btn, false);
+    }
+  }
+
+  async function submitEditarUsuario() {
+    var btn      = document.getElementById('btnGuardarEditar');
+    var alertEl  = document.getElementById('alertEditar');
+    var emailTarget = document.getElementById('editEmailHidden').value;
+    var datos = {
+      nombre_completo: document.getElementById('editNombre').value.trim(),
+      rol:             document.getElementById('editRol').value
+    };
+
+    setLoading(btn, true);
+    hideEl(alertEl);
+    try {
+      var res = await gasCall('updateUsuario', getToken(), emailTarget, datos);
+      if (res && res.ok) {
+        cerrarModales();
+        cargarUsuarios();
+      } else {
+        showAlert(alertEl, (res && res.error) || 'Error al actualizar.', 'danger');
+      }
+    } catch(err) {
+      showAlert(alertEl, 'Error: ' + (err.message || err), 'danger');
+    } finally {
+      setLoading(btn, false);
+    }
+  }
+
+  async function toggleActivo(email, nuevoEstado) {
+    if (!nuevoEstado) {
+      if (!confirm('¿Desactivar al usuario ' + email + '? No podrá ingresar al sistema.')) return;
+    }
+    try {
+      var res = await gasCall('toggleUsuarioActivo', getToken(), email, nuevoEstado);
+      if (res && res.ok) {
+        cargarUsuarios();
+      } else {
+        alert('Error: ' + ((res && res.error) || 'No se pudo cambiar el estado.'));
+      }
+    } catch(err) {
+      alert('Error: ' + (err.message || err));
+    }
+  }
+</script>

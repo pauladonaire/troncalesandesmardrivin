@@ -1,0 +1,223 @@
+<!-- ============================================================
+     ARCHIVO GAS: Viajes.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "Viajes" y pegar este contenido
+     ============================================================ -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Troncales — Generar Viajes</title>
+  <?!= include('global.css'); ?>
+  <?!= include('dashboard.css'); ?>
+  <?!= include('viajes.css'); ?>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-name">Troncales</div>
+      <div class="brand-sub">Generar Viajes</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section-label">Navegación</div>
+      <button class="nav-item" id="btnBackDashboard">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        <span>Volver al Dashboard</span>
+      </button>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div class="user-details">
+          <div class="user-name" id="sidebarUserName">Cargando...</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm w-100" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1>Generar Viajes</h1>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="steps-bar">
+          <div class="step-item active" id="step1">
+            <div class="step-num">1</div>
+            <span>Datos del Plan</span>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step-item" id="step2">
+            <div class="step-num">2</div>
+            <span>Carga de Viajes</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-body">
+
+      <!-- Loader inicial -->
+      <div id="initLoader" class="init-loading">
+        <span class="spinner-lg" style="border-top-color:var(--color-primary);border:3px solid var(--color-border);border-top-color:var(--color-primary);border-radius:50%;width:36px;height:36px;animation:spin 0.7s linear infinite"></span>
+        <p>Cargando datos maestros...</p>
+      </div>
+
+      <div id="viajesContent" class="d-none">
+
+        <!-- ══ PASO 1 ══════════════════════════════════════ -->
+        <div id="paso1" class="paso-section visible">
+          <div class="card" style="max-width:720px">
+            <div class="card-title">Paso 1 — Datos del Plan de Viaje</div>
+            <form id="formPlan" novalidate>
+              <div class="plan-form-grid">
+                <div class="form-group">
+                  <label class="form-label">Nombre del Plan *</label>
+                  <input type="text" id="planNombre" class="form-control" placeholder="Ej: Plan Buenos Aires 19/04" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Fecha del Viaje *</label>
+                  <input type="date" id="planFecha" class="form-control" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">País / Esquema *</label>
+                  <select id="planPais" class="form-control" required>
+                    <option value="">-- Seleccionar --</option>
+                    <option value="Argentina">Argentina (CL-ARG)</option>
+                    <option value="Chile">Chile (CL-CHILE)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Fecha Máxima de Entrega *</label>
+                  <input type="date" id="planFechaMax" class="form-control" required>
+                </div>
+              </div>
+              <div id="alertPlan" class="d-none" style="margin-bottom:12px"></div>
+              <button type="submit" id="btnCrearPlan" class="btn btn-primary btn-lg">
+                Crear Plan en Driv.in →
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- ══ PASO 2 ══════════════════════════════════════ -->
+        <div id="paso2" class="paso-section" style="display:none">
+
+          <!-- Resumen del plan -->
+          <div class="card" style="margin-bottom:16px;padding:12px 16px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-muted)">
+              <span style="font-weight:700;color:var(--color-success)">✓ Plan creado:</span>
+              <span id="planResumen"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Paso 2 — Carga de Viajes</div>
+
+            <!-- Cantidad de viajes -->
+            <div class="cantidad-row">
+              <div class="form-group">
+                <label class="form-label">¿Cuántos viajes vas a cargar?</label>
+                <input type="number" id="cantidadViajes" class="form-control" min="1" max="50" value="1">
+              </div>
+              <button class="btn btn-secondary" id="btnGenerarFilas">Generar filas</button>
+            </div>
+
+            <!-- Tabla dinámica -->
+            <div id="tableWrap" class="d-none">
+              <div class="viajes-table-wrap">
+                <table class="viajes-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Cód. Despacho</th>
+                      <th>Cód. Alternativo</th>
+                      <th class="required">Unid. 1</th>
+                      <th>Unid. 2</th>
+                      <th>Unid. 3</th>
+                      <th class="required">Dirección</th>
+                      <th class="required">Vehículo</th>
+                      <th>Arrastre</th>
+                      <th>Empleador</th>
+                      <th>Etiq. Costo</th>
+                      <th>Proveedor</th>
+                      <th>Etiq. Ingreso</th>
+                      <th>Ruta Maestra</th>
+                      <th class="required">Conductor</th>
+                      <th>2do Conductor</th>
+                      <th>Descripción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="viajesTableBody"></tbody>
+                </table>
+              </div>
+
+              <div id="alertCarga" class="d-none mt-16"></div>
+
+              <div style="display:flex;justify-content:flex-end;margin-top:20px">
+                <button class="btn btn-primary btn-lg d-none" id="btnCargarViajes">
+                  Cargar Viajes →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel de éxito -->
+          <div id="successPanel" class="success-panel">
+            <div class="success-icon">✓</div>
+            <h2>¡Viajes cargados!</h2>
+            <p><span id="successCount"></span> viajes registrados y archivo generado correctamente.</p>
+            <div class="success-actions">
+              <a href="#" id="btnDescargarExcel" class="btn btn-primary" target="_blank">
+                Descargar Excel
+              </a>
+              <button class="btn btn-ghost" id="btnNuevoPlan">Cargar nuevo plan</button>
+            </div>
+          </div>
+
+        </div><!-- /paso2 -->
+
+      </div><!-- /viajesContent -->
+    </div><!-- /page-body -->
+  </main>
+</div>
+
+<!-- Modal Confirmación -->
+<div class="modal-overlay" id="modalConfirm">
+  <div class="modal">
+    <div class="modal-title">Confirmar carga de viajes</div>
+    <p style="color:var(--color-text-muted);margin-bottom:16px">
+      Estás por cargar <strong id="confirmN" style="color:var(--color-white)"></strong> viaje(s).
+    </p>
+    <div class="confirm-summary">
+      <div class="cs-row"><span class="cs-label">Plan</span><span class="cs-value" id="confirmPlan"></span></div>
+      <div class="cs-row"><span class="cs-label">Fecha</span><span class="cs-value" id="confirmFecha"></span></div>
+      <div class="cs-row"><span class="cs-label">Esquema</span><span class="cs-value" id="confirmSchema"></span></div>
+      <div class="cs-row"><span class="cs-label">Fecha máx. entrega</span><span class="cs-value" id="confirmFechaMax"></span></div>
+    </div>
+    <p style="font-size:12px;color:var(--color-text-muted)">
+      Se generará un Excel y se registrarán los viajes en el historial.
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btnCancelarConfirm">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarCarga">Confirmar y cargar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <span style="width:40px;height:40px;border:3px solid var(--color-border);border-top-color:var(--color-primary);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block"></span>
+  <p>Generando archivo y registrando viajes...</p>
+  <p style="font-size:11px;color:var(--color-border)">Esto puede tardar unos segundos.</p>
+</div>
+
+<script id="sessionData" type="application/json"><?!= session ?></script>
+<?!= include('api.js'); ?>
+<?!= include('viajes.js'); ?>
+</body>
+</html>

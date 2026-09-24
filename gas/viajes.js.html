@@ -1,0 +1,974 @@
+<!-- ============================================================
+     ARCHIVO GAS: viajes.js.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "viajes.js" y pegar este contenido
+     ============================================================ -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script>
+  var SESSION_V  = null;
+  var DATOS      = null;
+  var planCreado = null;          // { id, nombre, fechaViaje, schemaCode, fechaMaxEntrega }
+  var vehiculosEnUso = {};        // { rowIndex: vehicleCode }
+  var filasMultiSelect = {};      // { rowIndex: { costos: [], ingresos: [] } }
+
+  // ── Inicialización ───────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    try { SESSION_V = JSON.parse(document.getElementById('sessionData').textContent); } catch(e) {}
+    if (!SESSION_V) SESSION_V = getSession();
+    if (!SESSION_V || !getToken()) { redirectToLogin(); return; }
+
+    renderViajesUser();
+    inicializarFechaPlan();
+    cargarDatosMaestros();
+
+    var logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    var backBtn = document.getElementById('btnBackDashboard');
+    if (backBtn) backBtn.addEventListener('click', function() { navigateTo('dashboard'); });
+  });
+
+  function renderViajesUser() {
+    var el = document.getElementById('sidebarUserName');
+    if (el) el.textContent = SESSION_V.nombre_completo;
+    var avatarEl = document.getElementById('sidebarAvatar');
+    if (avatarEl) avatarEl.textContent = SESSION_V.iniciales || '?';
+  }
+
+  function inicializarFechaPlan() {
+    var fechaInput = document.getElementById('planFecha');
+    if (!fechaInput) return;
+    if (SESSION_V.rol === 'OPERACION_TRAFICO') {
+      var hoy = new Date();
+      var yyyy = hoy.getFullYear();
+      var mm   = String(hoy.getMonth() + 1).padStart(2, '0');
+      var dd   = String(hoy.getDate()).padStart(2, '0');
+      fechaInput.min = yyyy + '-' + mm + '-' + dd;
+    }
+  }
+
+  async function cargarDatosMaestros() {
+    var loader = document.getElementById('initLoader');
+    var content = document.getElementById('viajesContent');
+    showEl(loader);
+    hideEl(content);
+    try {
+      DATOS = await gasCall('getDatosMaestros', getToken());
+      hideEl(loader);
+      showEl(content);
+      initPasoUno();
+    } catch(err) {
+      var loaderEl = document.getElementById('initLoader');
+      if (loaderEl) loaderEl.innerHTML = '<div class="alert alert-danger">Error al cargar datos: ' + escapeHtml(err.message || err) + '<br><button class="btn btn-ghost btn-sm mt-8" onclick="cargarDatosMaestros()">Reintentar</button></div>';
+    }
+  }
+
+  // ── PASO 1: Datos del Plan ───────────────────────────
+  function initPasoUno() {
+    var formPlan = document.getElementById('formPlan');
+    if (formPlan) formPlan.addEventListener('submit', function(e) { e.preventDefault(); submitCrearPlan(); });
+  }
+
+  async function submitCrearPlan() {
+    var nombre    = (document.getElementById('planNombre').value || '').trim();
+    var fecha     = (document.getElementById('planFecha').value  || '').trim();
+    var pais      = document.getElementById('planPais').value;
+    var fechaMax  = (document.getElementById('planFechaMax').value || '').trim();
+    var alertEl   = document.getElementById('alertPlan');
+    var btnCrear  = document.getElementById('btnCrearPlan');
+
+    if (!nombre || !fecha || !pais || !fechaMax) {
+      showAlert(alertEl, 'Todos los campos del plan son obligatorios.', 'danger');
+      showEl(alertEl);
+      return;
+    }
+
+    var schemaMap = { 'Argentina': 'CL-ARG', 'Chile': 'CL-CHILE' };
+    var schemaCode = schemaMap[pais] || 'CL-ARG';
+
+    hideEl(alertEl);
+    setLoading(btnCrear, true);
+
+    try {
+      var res = await gasCall('crearPlanDrivin', getToken(), {
+        description: nombre,
+        date:        fecha,
+        fleet_name:  'FLOTA A',
+        schema_code: schemaCode
+      });
+
+      if (res && res.ok) {
+        planCreado = {
+          id:              (res.response && res.response.id) || '',
+          nombre:          nombre,
+          fechaViaje:      fecha,
+          schemaCode:      schemaCode,
+          fechaMaxEntrega: formatearFechaDDMMYYYY(fechaMax),
+          pais:            pais
+        };
+        irPasoDos();
+      } else {
+        showAlert(alertEl, 'Error al crear el plan: ' + (res ? res.error : 'Error desconocido'), 'danger');
+        showEl(alertEl);
+      }
+    } catch(err) {
+      showAlert(alertEl, 'Error: ' + (err.message || err), 'danger');
+      showEl(alertEl);
+    } finally {
+      setLoading(btnCrear, false);
+    }
+  }
+
+  function formatearFechaDDMMYYYY(isoDate) {
+    if (!isoDate) return '';
+    var parts = isoDate.split('-');
+    if (parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+    return isoDate;
+  }
+
+  function irPasoDos() {
+    document.getElementById('paso1').classList.remove('visible');
+    document.getElementById('paso1').style.display = 'none';
+    document.getElementById('paso2').style.display = 'block';
+    setTimeout(function() { document.getElementById('paso2').classList.add('visible'); }, 10);
+
+    // Actualizar step bar
+    var s1 = document.getElementById('step1');
+    var s2 = document.getElementById('step2');
+    if (s1) { s1.classList.remove('active'); s1.classList.add('done'); }
+    if (s2) s2.classList.add('active');
+
+    // Actualizar resumen del plan en paso 2
+    var resumenEl = document.getElementById('planResumen');
+    if (resumenEl) {
+      resumenEl.innerHTML = '<span class="text-primary fw-bold">' + escapeHtml(planCreado.nombre) + '</span>'
+        + ' &bull; ' + planCreado.fechaViaje
+        + ' &bull; ' + planCreado.pais
+        + ' <span class="badge badge-primary">' + planCreado.schemaCode + '</span>';
+    }
+
+    document.getElementById('btnGenerarFilas').addEventListener('click', generarFilas);
+    document.getElementById('btnCargarViajes').addEventListener('click', iniciarCarga);
+  }
+
+  // ── PASO 2: Generar filas ────────────────────────────
+  function generarFilas() {
+    var cantInput = document.getElementById('cantidadViajes');
+    var cantidad  = parseInt(cantInput ? cantInput.value : 1, 10);
+    if (isNaN(cantidad) || cantidad < 1) { alert('Ingresá una cantidad válida (mínimo 1).'); return; }
+    if (cantidad > 50) { alert('El máximo es 50 viajes por lote.'); return; }
+
+    vehiculosEnUso  = {};
+    filasMultiSelect = {};
+
+    var ahora    = new Date();
+    var yy  = String(ahora.getFullYear()).slice(2);
+    var mm  = String(ahora.getMonth() + 1).padStart(2, '0');
+    var dd  = String(ahora.getDate()).padStart(2, '0');
+    var hh  = String(ahora.getHours()).padStart(2, '0');
+    var mi  = String(ahora.getMinutes()).padStart(2, '0');
+    var ss  = String(ahora.getSeconds()).padStart(2, '0');
+    var codigoDespacho = yy + mm + dd + hh + mi + ss + '-' + cantidad + '-' + SESSION_V.iniciales;
+
+    var tbody = document.getElementById('viajesTableBody');
+    tbody.innerHTML = '';
+
+    for (var i = 0; i < cantidad; i++) {
+      filasMultiSelect[i] = { costos: [], ingresos: [] };
+      tbody.appendChild(crearFila(i, cantidad, codigoDespacho));
+    }
+
+    showEl(document.getElementById('tableWrap'));
+    showEl(document.getElementById('btnCargarViajes'));
+    document.getElementById('tableWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function crearFila(idx, total, codigoDespacho) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-row', idx);
+
+    // Col 0: Número de fila
+    var tdNum = document.createElement('td');
+    tdNum.innerHTML = '<div class="row-num">' + (idx + 1) + '</div>';
+    tr.appendChild(tdNum);
+
+    // Col 1: Código despacho (readonly)
+    var tdCod = document.createElement('td');
+    tdCod.innerHTML = '<input type="text" class="form-control cod-despacho" value="' + escapeHtml(codigoDespacho) + '" readonly>';
+    tr.appendChild(tdCod);
+
+    // Col 2: Código alternativo
+    var tdAlt = document.createElement('td');
+    tdAlt.innerHTML = '<input type="text" class="form-control" placeholder="Opcional" data-field="codigoAlternativo">';
+    tr.appendChild(tdAlt);
+
+    // Col 3: Unidades 1 (obligatorio)
+    var tdU1 = document.createElement('td');
+    tdU1.innerHTML = '<input type="number" class="form-control" min="1" step="1" required data-field="unidades1" style="min-width:75px">';
+    tr.appendChild(tdU1);
+
+    // Col 4: Unidades 2
+    var tdU2 = document.createElement('td');
+    tdU2.innerHTML = '<input type="number" class="form-control" min="0" step="1" data-field="unidades2" style="min-width:75px">';
+    tr.appendChild(tdU2);
+
+    // Col 5: Unidades 3
+    var tdU3 = document.createElement('td');
+    tdU3.innerHTML = '<input type="number" class="form-control" min="0" step="1" data-field="unidades3" style="min-width:75px">';
+    tr.appendChild(tdU3);
+
+    // Col 6: Código Dirección (dropdown custom)
+    var tdDir = document.createElement('td');
+    tdDir.appendChild(crearDropdownDirecciones(idx));
+    tr.appendChild(tdDir);
+
+    // Col 7: Vehículo (select con exclusividad)
+    var tdVeh = document.createElement('td');
+    tdVeh.appendChild(crearSelectVehiculo(idx));
+    tr.appendChild(tdVeh);
+
+    // Col 8: Arrastre
+    var tdArr = document.createElement('td');
+    tdArr.appendChild(crearSelectArrastre(idx));
+    tr.appendChild(tdArr);
+
+    // Col 9: Empleador (calculado, readonly)
+    var tdEmp = document.createElement('td');
+    tdEmp.innerHTML = '<div class="empleador-cell" id="empleador_' + idx + '"><span class="text-muted">—</span></div>';
+    tr.appendChild(tdEmp);
+
+    // Col 10: Etiqueta-Costo (multi-select)
+    var tdCosto = document.createElement('td');
+    tdCosto.appendChild(crearMultiSelect('costo', idx, []));
+    tr.appendChild(tdCosto);
+
+    // Col 11: Proveedor
+    var tdProv = document.createElement('td');
+    tdProv.appendChild(crearSelectProveedor(idx));
+    tr.appendChild(tdProv);
+
+    // Col 12: Etiqueta-Ingreso (multi-select)
+    var tdIngreso = document.createElement('td');
+    tdIngreso.appendChild(crearMultiSelect('ingreso', idx, []));
+    tr.appendChild(tdIngreso);
+
+    // Col 13: Ruta Maestra
+    var tdRuta = document.createElement('td');
+    tdRuta.appendChild(crearSelectRuta(idx));
+    tr.appendChild(tdRuta);
+
+    // Col 14: Conductor (dropdown custom, obligatorio)
+    var tdCond = document.createElement('td');
+    tdCond.appendChild(crearDropdownConductor(idx));
+    tr.appendChild(tdCond);
+
+    // Col 15: Segundo conductor
+    var tdCond2 = document.createElement('td');
+    tdCond2.appendChild(crearDropdownSegundoConductor(idx));
+    tr.appendChild(tdCond2);
+
+    // Col 16: Descripción
+    var tdDesc = document.createElement('td');
+    tdDesc.innerHTML = '<input type="text" class="form-control" placeholder="Opcional" data-field="descripcionViaje" style="min-width:140px">';
+    tr.appendChild(tdDesc);
+
+    return tr;
+  }
+
+  // ── Dropdown con búsqueda — Direcciones ─────────────
+  function crearDropdownDirecciones(idx) {
+    var wrap  = document.createElement('div');
+    wrap.className = 'searchable-dropdown';
+    wrap.id  = 'dd_dir_' + idx;
+
+    var input = document.createElement('input');
+    input.type        = 'text';
+    input.className   = 'sd-input form-control';
+    input.placeholder = 'Buscar dirección...';
+    input.setAttribute('data-field', 'codigoDireccion');
+    input.setAttribute('data-value', '');
+    input.setAttribute('autocomplete', 'off');
+
+    var list = document.createElement('div');
+    list.className = 'sd-list';
+
+    input.addEventListener('focus', function() { refrescarListaDirecciones(input, list); });
+    input.addEventListener('input', function() {
+      input.setAttribute('data-value', '');
+      refrescarListaDirecciones(input, list);
+    });
+
+    input.addEventListener('blur', function() {
+      setTimeout(function() { list.classList.remove('open'); }, 200);
+    });
+
+    wrap.appendChild(input);
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function refrescarListaDirecciones(input, list) {
+    var q = (input.value || '').toLowerCase().trim();
+    var items = DATOS.direcciones.filter(function(d) {
+      return !q
+        || (d.code    || '').toLowerCase().includes(q)
+        || (d.name    || '').toLowerCase().includes(q)
+        || (d.address1|| '').toLowerCase().includes(q)
+        || (d.city    || '').toLowerCase().includes(q);
+    }).slice(0, 60);
+
+    if (items.length === 0) {
+      list.innerHTML = '<div class="sd-empty">Sin resultados</div>';
+    } else {
+      list.innerHTML = items.map(function(d) {
+        var label = '<span class="opt-code">[' + escapeHtml(d.code) + ']</span> '
+                  + escapeHtml(d.name)
+                  + '<br><span class="opt-detail">'
+                  + [d.address1, d.city, d.state, d.country].filter(Boolean).map(escapeHtml).join(', ')
+                  + '</span>';
+        return '<div class="sd-option" data-code="' + escapeHtml(d.code) + '">' + label + '</div>';
+      }).join('');
+
+      list.querySelectorAll('.sd-option').forEach(function(opt) {
+        opt.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          var code = opt.getAttribute('data-code');
+          input.value = code;
+          input.setAttribute('data-value', code);
+          input.classList.remove('error');
+          list.classList.remove('open');
+        });
+      });
+    }
+    list.classList.add('open');
+  }
+
+  // ── Dropdown con búsqueda — Conductores ─────────────
+  function crearDropdownConductor(idx) {
+    return crearDropdownPersona('cond', idx, DATOS.tripulantes, 'nombre_completo', 'email', 'Buscar conductor...');
+  }
+
+  function crearDropdownSegundoConductor(idx) {
+    return crearDropdownPersona('cond2', idx, DATOS.tripulantes, 'nombre_completo', 'nombre_completo', 'Segundo conductor (opc.)');
+  }
+
+  function crearDropdownPersona(prefix, idx, lista, labelField, valueField, placeholder) {
+    var wrap  = document.createElement('div');
+    wrap.className = 'searchable-dropdown';
+    wrap.id  = prefix + '_wrap_' + idx;
+
+    var input = document.createElement('input');
+    input.type        = 'text';
+    input.className   = 'sd-input form-control';
+    input.placeholder = placeholder;
+    input.setAttribute('data-value', '');
+    input.setAttribute('autocomplete', 'off');
+    if (prefix === 'cond') input.setAttribute('data-field', 'conductorEmail');
+    else                   input.setAttribute('data-field', 'segundoConductorNombre');
+
+    var list  = document.createElement('div');
+    list.className = 'sd-list';
+
+    function refrescar() {
+      var q = (input.value || '').toLowerCase().trim();
+      var items = lista.filter(function(p) {
+        return !q || (p[labelField] || '').toLowerCase().includes(q);
+      }).slice(0, 60);
+
+      if (items.length === 0) {
+        list.innerHTML = '<div class="sd-empty">Sin resultados</div>';
+      } else {
+        list.innerHTML = items.map(function(p) {
+          return '<div class="sd-option" data-label="' + escapeHtml(p[labelField]) + '" data-value="' + escapeHtml(p[valueField]) + '">'
+            + escapeHtml(p[labelField])
+            + '</div>';
+        }).join('');
+        list.querySelectorAll('.sd-option').forEach(function(opt) {
+          opt.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            input.value = opt.getAttribute('data-label');
+            input.setAttribute('data-value', opt.getAttribute('data-value'));
+            input.classList.remove('error');
+            list.classList.remove('open');
+          });
+        });
+      }
+      list.classList.add('open');
+    }
+
+    input.addEventListener('focus', refrescar);
+    input.addEventListener('input', function() { input.setAttribute('data-value', ''); refrescar(); });
+    input.addEventListener('blur',  function() { setTimeout(function() { list.classList.remove('open'); }, 200); });
+
+    wrap.appendChild(input);
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  // ── Select Vehículo con exclusividad ─────────────────
+  function crearSelectVehiculo(idx) {
+    var sel = document.createElement('select');
+    sel.className = 'form-control';
+    sel.id        = 'veh_' + idx;
+    sel.setAttribute('data-field', 'vehiculo');
+    sel.setAttribute('data-row', idx);
+    sel.style.minWidth = '130px';
+    poblarSelectVehiculo(sel, idx);
+
+    sel.addEventListener('change', function() {
+      var prev  = vehiculosEnUso[idx] || '';
+      var nuevo = sel.value;
+      vehiculosEnUso[idx] = nuevo || '';
+      refrescarTodosVehiculos(idx, prev, nuevo);
+      actualizarEmpleador(idx, nuevo);
+      actualizarEtiquetasCosto(idx, nuevo);
+      actualizarEtiquetasIngreso(idx);
+    });
+    return sel;
+  }
+
+  function poblarSelectVehiculo(sel, ownIdx) {
+    var currentVal = sel.value;
+    sel.innerHTML  = '<option value="">-- Vehículo --</option>';
+    DATOS.flota.forEach(function(v) {
+      var enUso = vehiculosEnUso[v.code] !== undefined ? true : false;
+      var usadoPorOtro = Object.keys(vehiculosEnUso).some(function(k) {
+        return parseInt(k, 10) !== ownIdx && vehiculosEnUso[k] === v.code;
+      });
+      if (!usadoPorOtro || v.code === currentVal) {
+        var opt = document.createElement('option');
+        opt.value       = v.code;
+        opt.textContent = v.code + (v.name ? ' — ' + v.name : '');
+        if (v.code === currentVal) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    });
+  }
+
+  function refrescarTodosVehiculos(changedIdx, prevCode, newCode) {
+    var allSelects = document.querySelectorAll('select[data-field="vehiculo"]');
+    allSelects.forEach(function(sel) {
+      var rowIdx = parseInt(sel.getAttribute('data-row'), 10);
+      if (rowIdx !== changedIdx) {
+        var saved = sel.value;
+        poblarSelectVehiculo(sel, rowIdx);
+        sel.value = saved;
+      }
+    });
+  }
+
+  function actualizarEmpleador(idx, vehiculoCode) {
+    var empCell = document.getElementById('empleador_' + idx);
+    if (!empCell) return;
+    if (!vehiculoCode) {
+      empCell.innerHTML = '<span class="text-muted">—</span>';
+      return;
+    }
+    var veh = DATOS.flota.find(function(v) { return v.code === vehiculoCode; });
+    if (!veh) { empCell.innerHTML = '<span class="text-muted">—</span>'; return; }
+
+    if (veh.employer_name) {
+      empCell.innerHTML = '<span style="color:var(--color-text-muted);font-size:11px">' + escapeHtml(veh.employer_name) + '</span>';
+    } else {
+      empCell.innerHTML = '<span class="empleador-warning">⚠ Sin employer</span>';
+    }
+  }
+
+  // ── Select Arrastre ───────────────────────────────────
+  function crearSelectArrastre(idx) {
+    var sel = document.createElement('select');
+    sel.className = 'form-control';
+    sel.setAttribute('data-field', 'arrastre');
+    sel.style.minWidth = '120px';
+    sel.innerHTML = '<option value="">— Ninguno —</option>';
+    DATOS.arrastres.forEach(function(a) {
+      var codigo = a.codigo || a.code || a.Codigo || '';
+      var nombre = a.nombre || a.name || a.Nombre || codigo;
+      if (!codigo && !nombre) return;
+      var opt = document.createElement('option');
+      opt.value = codigo || nombre;
+      opt.textContent = nombre;
+      sel.appendChild(opt);
+    });
+    return sel;
+  }
+
+  // ── Select Proveedor ──────────────────────────────────
+  function crearSelectProveedor(idx) {
+    var sel = document.createElement('select');
+    sel.className = 'form-control';
+    sel.id        = 'prov_' + idx;
+    sel.setAttribute('data-field', 'proveedor');
+    sel.style.minWidth = '140px';
+    sel.innerHTML = '<option value="">— Ninguno —</option>';
+
+    var suppliers = DATOS.socios.filter(function(s) {
+      return (s.type || '').toLowerCase() === 'supplier';
+    });
+    suppliers.forEach(function(s) {
+      var opt = document.createElement('option');
+      opt.value       = s.name;
+      opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+
+    sel.addEventListener('change', function() {
+      actualizarRutasMaestras(idx);
+      actualizarEtiquetasIngreso(idx);
+    });
+    return sel;
+  }
+
+  // ── Select Ruta Maestra ───────────────────────────────
+  function crearSelectRuta(idx) {
+    var sel = document.createElement('select');
+    sel.className = 'form-control';
+    sel.id        = 'ruta_' + idx;
+    sel.setAttribute('data-field', 'rutaMaestra');
+    sel.style.minWidth = '140px';
+    poblarRutas(sel, null);
+    return sel;
+  }
+
+  function poblarRutas(sel, proveedorName) {
+    sel.innerHTML = '<option value="">— Ninguna —</option>';
+    var rutas = proveedorName
+      ? DATOS.rutas.filter(function(r) {
+          var colB = r[Object.keys(r)[1]] || '';
+          return colB === proveedorName;
+        })
+      : DATOS.rutas;
+
+    rutas.forEach(function(r) {
+      var codigo = r.codigo || r.Codigo || r[Object.keys(r)[0]] || '';
+      var nombre = r.nombre || r.Nombre || r[Object.keys(r)[1]] || codigo;
+      var opt = document.createElement('option');
+      opt.value = codigo || nombre;
+      opt.textContent = (codigo ? codigo + ' — ' : '') + nombre;
+      sel.appendChild(opt);
+    });
+  }
+
+  function actualizarRutasMaestras(idx) {
+    var provSel = document.getElementById('prov_' + idx);
+    var rutaSel = document.getElementById('ruta_' + idx);
+    if (!rutaSel) return;
+    var prov = provSel ? provSel.value : null;
+    poblarRutas(rutaSel, prov || null);
+  }
+
+  // ── Multi-select Etiquetas ────────────────────────────
+  function crearMultiSelect(tipo, idx, opciones) {
+    var containerId = 'ms_' + tipo + '_' + idx;
+    var wrap = document.createElement('div');
+    wrap.className = 'multi-select-wrap';
+    wrap.id        = containerId;
+    wrap.style.minWidth = '160px';
+
+    var pillsDiv = document.createElement('div');
+    pillsDiv.className = 'multi-select-pills';
+    pillsDiv.id        = containerId + '_pills';
+    pillsDiv.innerHTML = '<span class="ms-placeholder">Sin opciones</span>';
+
+    var dropdown = document.createElement('div');
+    dropdown.className = 'multi-select-dropdown';
+    dropdown.id        = containerId + '_dd';
+
+    pillsDiv.addEventListener('click', function(e) {
+      e.stopPropagation();
+      dropdown.classList.toggle('open');
+    });
+
+    document.addEventListener('click', function() {
+      dropdown.classList.remove('open');
+    });
+    dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+
+    wrap.appendChild(pillsDiv);
+    wrap.appendChild(dropdown);
+    actualizarMultiSelect(tipo, idx, opciones);
+    return wrap;
+  }
+
+  function actualizarMultiSelect(tipo, idx, nuevasOpciones) {
+    var containerId  = 'ms_' + tipo + '_' + idx;
+    var pillsDiv     = document.getElementById(containerId + '_pills');
+    var dropdown     = document.getElementById(containerId + '_dd');
+    if (!pillsDiv || !dropdown) return;
+
+    var seleccionadas = filasMultiSelect[idx] ? (filasMultiSelect[idx][tipo === 'costo' ? 'costos' : 'ingresos'] || []) : [];
+    // Filtrar seleccionadas que ya no están en opciones
+    seleccionadas = seleccionadas.filter(function(s) { return nuevasOpciones.includes(s); });
+    if (filasMultiSelect[idx]) filasMultiSelect[idx][tipo === 'costo' ? 'costos' : 'ingresos'] = seleccionadas;
+
+    if (nuevasOpciones.length === 0) {
+      pillsDiv.innerHTML = '<span class="ms-placeholder text-muted" style="font-size:11px">Sin opciones</span>';
+      dropdown.innerHTML = '<div class="ms-empty">Sin etiquetas disponibles</div>';
+      return;
+    }
+
+    // Renderizar pills
+    renderPills(pillsDiv, seleccionadas, tipo, idx);
+
+    // Renderizar opciones
+    dropdown.innerHTML = nuevasOpciones.map(function(op) {
+      var checked = seleccionadas.includes(op);
+      return '<label class="ms-option">'
+        + '<input type="checkbox" value="' + escapeHtml(op) + '" ' + (checked ? 'checked' : '') + '>'
+        + escapeHtml(op)
+        + '</label>';
+    }).join('');
+
+    dropdown.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        var key = tipo === 'costo' ? 'costos' : 'ingresos';
+        if (cb.checked) {
+          if (!filasMultiSelect[idx][key].includes(cb.value)) {
+            filasMultiSelect[idx][key].push(cb.value);
+          }
+        } else {
+          filasMultiSelect[idx][key] = filasMultiSelect[idx][key].filter(function(x) { return x !== cb.value; });
+        }
+        renderPills(pillsDiv, filasMultiSelect[idx][key], tipo, idx);
+      });
+    });
+  }
+
+  function renderPills(pillsDiv, seleccionadas, tipo, idx) {
+    if (!seleccionadas || seleccionadas.length === 0) {
+      pillsDiv.innerHTML = '<span class="ms-placeholder text-muted" style="font-size:11px">Ninguna</span>';
+      return;
+    }
+    pillsDiv.innerHTML = seleccionadas.map(function(s) {
+      return '<span class="multi-pill">' + escapeHtml(s)
+        + '<span class="pill-remove" data-val="' + escapeHtml(s) + '" data-tipo="' + tipo + '" data-idx="' + idx + '">×</span>'
+        + '</span>';
+    }).join('');
+
+    pillsDiv.querySelectorAll('.pill-remove').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var val  = btn.getAttribute('data-val');
+        var t    = btn.getAttribute('data-tipo');
+        var i    = parseInt(btn.getAttribute('data-idx'), 10);
+        var key  = t === 'costo' ? 'costos' : 'ingresos';
+        filasMultiSelect[i][key] = filasMultiSelect[i][key].filter(function(x) { return x !== val; });
+        var containerId = 'ms_' + t + '_' + i;
+        var dd = document.getElementById(containerId + '_dd');
+        if (dd) {
+          var cb = dd.querySelector('input[value="' + val + '"]');
+          if (cb) cb.checked = false;
+        }
+        renderPills(pillsDiv, filasMultiSelect[i][key], t, i);
+      });
+    });
+  }
+
+  function actualizarEtiquetasCosto(idx, vehiculoCode) {
+    if (!vehiculoCode || !DATOS || !DATOS.esquemasCostos) {
+      actualizarMultiSelect('costo', idx, []);
+      return;
+    }
+    var veh = DATOS.flota.find(function(v) { return v.code === vehiculoCode; });
+    var employer = veh ? (veh.employer_name || '') : '';
+    if (!employer) { actualizarMultiSelect('costo', idx, []); return; }
+
+    // Columna M (índice 12) = employer; Columna AA (índice 26) = etiqueta
+    var opciones = [];
+    DATOS.esquemasCostos.slice(1).forEach(function(row) {
+      if ((row[12] || '').trim() === employer) {
+        var tag = (row[26] || '').trim();
+        if (tag && !opciones.includes(tag)) opciones.push(tag);
+      }
+    });
+    actualizarMultiSelect('costo', idx, opciones);
+  }
+
+  function actualizarEtiquetasIngreso(idx) {
+    var provSel  = document.getElementById('prov_' + idx);
+    var provName = provSel ? provSel.value : '';
+    var vehSel   = document.getElementById('veh_' + idx);
+    var vehCode  = vehSel ? vehSel.value : '';
+    var veh      = vehCode ? DATOS.flota.find(function(v) { return v.code === vehCode; }) : null;
+    var employer = veh ? (veh.employer_name || '') : '';
+
+    if (!DATOS || !DATOS.esquemasIngresos) { actualizarMultiSelect('ingreso', idx, []); return; }
+
+    // Columna L (índice 11) = employer; Columna AA (índice 26) = etiqueta
+    var opciones = [];
+    DATOS.esquemasIngresos.slice(1).forEach(function(row) {
+      var matchEmp  = !employer  || (row[11] || '').trim() === employer;
+      var matchProv = !provName  || (row[0]  || '').trim() === provName || (row[1] || '').trim() === provName;
+      if (matchEmp && matchProv) {
+        var tag = (row[26] || '').trim();
+        if (tag && !opciones.includes(tag)) opciones.push(tag);
+      }
+    });
+    actualizarMultiSelect('ingreso', idx, opciones);
+  }
+
+  // ── Validación ────────────────────────────────────────
+  function validarFilas() {
+    var errores = [];
+    var tbody   = document.getElementById('viajesTableBody');
+    if (!tbody) return errores;
+
+    // Limpiar errores previos
+    tbody.querySelectorAll('.form-control.error, .sd-input.error').forEach(function(el) {
+      el.classList.remove('error');
+    });
+
+    var rows = tbody.querySelectorAll('tr[data-row]');
+    rows.forEach(function(tr) {
+      var idx = parseInt(tr.getAttribute('data-row'), 10);
+
+      // Unidades 1
+      var u1 = tr.querySelector('[data-field="unidades1"]');
+      if (!u1 || !u1.value || parseInt(u1.value, 10) < 1) {
+        if (u1) u1.classList.add('error');
+        errores.push({ idx: idx, el: u1, msg: 'Unidades 1 es obligatorio' });
+      }
+
+      // Código Dirección
+      var ddDir = tr.querySelector('[data-field="codigoDireccion"]');
+      if (!ddDir || !ddDir.getAttribute('data-value')) {
+        if (ddDir) ddDir.classList.add('error');
+        errores.push({ idx: idx, el: ddDir, msg: 'Dirección es obligatoria' });
+      }
+
+      // Vehículo
+      var vehSel = tr.querySelector('[data-field="vehiculo"]');
+      if (!vehSel || !vehSel.value) {
+        if (vehSel) vehSel.classList.add('error');
+        errores.push({ idx: idx, el: vehSel, msg: 'Vehículo es obligatorio' });
+      }
+
+      // Conductor
+      var condInput = tr.querySelector('[data-field="conductorEmail"]');
+      if (!condInput || !condInput.getAttribute('data-value')) {
+        if (condInput) condInput.classList.add('error');
+        errores.push({ idx: idx, el: condInput, msg: 'Conductor es obligatorio' });
+      }
+    });
+
+    return errores;
+  }
+
+  // ── Recolectar datos de filas ─────────────────────────
+  function recolectarViajes() {
+    var tbody  = document.getElementById('viajesTableBody');
+    var viajes = [];
+    tbody.querySelectorAll('tr[data-row]').forEach(function(tr) {
+      var idx = parseInt(tr.getAttribute('data-row'), 10);
+
+      function getField(field) {
+        var el = tr.querySelector('[data-field="' + field + '"]');
+        if (!el) return '';
+        if (el.tagName === 'SELECT') return el.value || '';
+        return (el.getAttribute('data-value') || el.value || '').trim();
+      }
+
+      var vehCode  = getField('vehiculo');
+      var veh      = vehCode ? DATOS.flota.find(function(v) { return v.code === vehCode; }) : null;
+      var codInput = tr.querySelector('.cod-despacho');
+
+      viajes.push({
+        codigoDespacho:          codInput ? codInput.value : '',
+        codigoAlternativo:       getField('codigoAlternativo'),
+        unidades1:               getField('unidades1'),
+        unidades2:               getField('unidades2'),
+        unidades3:               getField('unidades3'),
+        codigoDireccion:         (tr.querySelector('[data-field="codigoDireccion"]') || {getAttribute: function(){return '';}}).getAttribute('data-value') || '',
+        vehiculo:                vehCode,
+        arrastre:                getField('arrastre'),
+        empleador:               veh ? (veh.employer_name || '') : '',
+        etiquetasCosto:          filasMultiSelect[idx] ? (filasMultiSelect[idx].costos  || []) : [],
+        proveedor:               getField('proveedor'),
+        etiquetasIngreso:        filasMultiSelect[idx] ? (filasMultiSelect[idx].ingresos || []) : [],
+        rutaMaestra:             getField('rutaMaestra'),
+        conductorEmail:          (tr.querySelector('[data-field="conductorEmail"]') || {getAttribute: function(){return '';}}).getAttribute('data-value') || '',
+        segundoConductorNombre:  (tr.querySelector('[data-field="segundoConductorNombre"]') || {getAttribute: function(){return '';}}).getAttribute('data-value') || '',
+        descripcionViaje:        getField('descripcionViaje')
+      });
+    });
+    return viajes;
+  }
+
+  // ── Iniciar carga ─────────────────────────────────────
+  function iniciarCarga() {
+    var errores = validarFilas();
+    if (errores.length > 0) {
+      var primerError = errores[0];
+      if (primerError.el) primerError.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var alertEl = document.getElementById('alertCarga');
+      showAlert(alertEl, 'Hay ' + errores.length + ' campo(s) obligatorio(s) sin completar. Corregí los campos marcados en rojo.', 'danger');
+      showEl(alertEl);
+      return;
+    }
+
+    var viajes = recolectarViajes();
+    mostrarModalConfirmacion(viajes);
+  }
+
+  function mostrarModalConfirmacion(viajes) {
+    var modal = document.getElementById('modalConfirm');
+    if (!modal) return;
+
+    document.getElementById('confirmN').textContent     = viajes.length;
+    document.getElementById('confirmPlan').textContent  = planCreado.nombre;
+    document.getElementById('confirmFecha').textContent = planCreado.fechaViaje;
+    document.getElementById('confirmSchema').textContent = planCreado.schemaCode;
+    document.getElementById('confirmFechaMax').textContent = planCreado.fechaMaxEntrega;
+
+    modal.classList.add('active');
+
+    document.getElementById('btnConfirmarCarga').onclick = function() {
+      modal.classList.remove('active');
+      ejecutarCarga(viajes);
+    };
+    document.getElementById('btnCancelarConfirm').onclick = function() {
+      modal.classList.remove('active');
+    };
+  }
+
+  async function ejecutarCarga(viajes) {
+    var overlay = document.getElementById('loadingOverlay');
+    showEl(overlay);
+    overlay.classList.add('active');
+
+    try {
+      // 1. Generar Excel con SheetJS
+      var wb   = XLSX.utils.book_new();
+      var data = [getHeadersExcel()].concat(viajes.map(function(v) { return mapearViaje(v); }));
+      var ws   = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, planCreado.nombre.substring(0, 31));
+
+      var base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+
+      // 2. Nombre del archivo
+      var ahora = new Date();
+      var ts = ahora.getFullYear()
+             + String(ahora.getMonth()+1).padStart(2,'0')
+             + String(ahora.getDate()).padStart(2,'0')
+             + '_'
+             + String(ahora.getHours()).padStart(2,'0')
+             + String(ahora.getMinutes()).padStart(2,'0');
+      var nombreArchivo = planCreado.nombre.replace(/[^a-z0-9_\-]/gi, '_') + '_' + ts + '.xlsx';
+
+      // 3. Subir a Drive y registrar
+      var res = await gasCall('subirExcelADrive', getToken(), base64, nombreArchivo, viajes, planCreado);
+
+      overlay.classList.remove('active');
+      hideEl(overlay);
+
+      if (res && res.ok) {
+        mostrarExito(viajes.length, res.fileUrl);
+      } else {
+        var alertEl = document.getElementById('alertCarga');
+        showAlert(alertEl, 'Error al subir: ' + ((res && res.error) || 'Error desconocido'), 'danger');
+        showEl(alertEl);
+      }
+    } catch(err) {
+      overlay.classList.remove('active');
+      hideEl(overlay);
+      var alertEl2 = document.getElementById('alertCarga');
+      showAlert(alertEl2, 'Error: ' + (err.message || err), 'danger');
+      showEl(alertEl2);
+      console.error(err);
+    }
+  }
+
+  function mostrarExito(count, fileUrl) {
+    hideEl(document.getElementById('paso2'));
+    var panel = document.getElementById('successPanel');
+    document.getElementById('successCount').textContent = count;
+    var dlBtn = document.getElementById('btnDescargarExcel');
+    if (dlBtn) { dlBtn.href = fileUrl; dlBtn.target = '_blank'; }
+    showEl(panel);
+    panel.classList.add('visible');
+    document.getElementById('btnNuevoPlan').addEventListener('click', function() { window.location.reload(); });
+  }
+
+  // ── Cabeceras del Excel ───────────────────────────────
+  function getHeadersExcel() {
+    return [
+      'Fecha Maxima de Entrega','Nombre Plan','Esquema','Código de despacho',
+      'Unidades_1','Unidades_2','Unidades_3','Prioridad','Código de dirección',
+      'Nombre dirección','Nombre cliente','Tipo','Dirección 1','Referencias',
+      'Descripción','Comuna','Provincia','Región','País','Código Postal',
+      'Latitud','Longitud','Tiempo de servicio','Inicio Ventana 1','Fin Ventana 1',
+      'Características','Asignación vehículo','Telefono de Contacto','Email de Contacto',
+      'Unidades del artículo','Código del artículo','Descripción del artículo',
+      'Exclusividad','Posicion','Proveedor','Inicio ventana 2','Fin ventana 2',
+      'Código cliente','Nombre de contacto','Código Alternativo',
+      'Mail aprobar ruta','Mail iniciar ruta','Mail en camino a direccion',
+      'Mail entrega finalizada','Código de ruta','Número de viaje','Tipo Unidad',
+      'Texto 1','Texto 2','Texto 3','Texto 4','Texto 5','Texto 6','Texto 7',
+      'Texto 8','Texto 9','Texto 10','Texto 11','Número 1','Número 2','Número 3',
+      'Número 4','Correo Conductor','Costo Asignación','Columna dummy',
+      'Fecha Facturación','Ruta Maestra','Descripción Despacho',
+      'Telefono contacto ruta aprobada','Telefono contacto ruta iniciada',
+      'Telefono contacto cerca del lugar','Telefono contacto entrega',
+      'Código zona de ventas','Unidades requeridas por item','Tag de Busqueda',
+      'Fecha de proceso','Folio','Orden de compra','Nombre 2do Contacto',
+      'Teléfono 2do Contacto','Email 2do Contacto','Categoría','url','token',
+      'url con token','Unidades_4','Tipo de orden','Paquete de datos',
+      'Código proveedor','Texto 12','Texto 13','Texto 14','Texto 15','Texto 16',
+      'Texto 17','Texto 18','Texto 19','Texto 20','Código Empleador',
+      'Prioridad de Secuencia'
+    ];
+  }
+
+  // ── Mapear viaje a 100 columnas ───────────────────────
+  function mapearViaje(v) {
+    var session  = SESSION_V;
+    var email    = session ? session.email : '';
+    var etiquetas = [].concat(
+      Array.isArray(v.etiquetasCosto)   ? v.etiquetasCosto   : [],
+      Array.isArray(v.etiquetasIngreso) ? v.etiquetasIngreso : []
+    ).join(',');
+
+    return [
+      planCreado.fechaMaxEntrega          || '', // [0]
+      planCreado.nombre                   || '', // [1]
+      planCreado.schemaCode               || '', // [2]
+      v.codigoDespacho                    || '', // [3]
+      v.unidades1                         || '', // [4]
+      v.unidades2                         || '', // [5]
+      v.unidades3                         || '', // [6]
+      '',                                        // [7]
+      v.codigoDireccion                   || '', // [8]
+      '','','','','','','','','','','','',       // [9-20]
+      '','','','',                               // [21-24]
+      '',                                        // [25]
+      v.vehiculo                          || '', // [26]
+      '','',                                     // [27-28]
+      '','','','','',                            // [29-33]
+      v.proveedor                         || '', // [34]
+      '','','','',                               // [35-38]
+      v.codigoAlternativo                 || '', // [39]
+      '','','','',                               // [40-43]
+      v.codigoDespacho                    || '', // [44]
+      '','',                                     // [45-46]
+      '','','','','',                            // [47-51]
+      etiquetas,                                 // [52] Texto 6
+      v.arrastre                          || '', // [53] Texto 7
+      [v.codigoDespacho, v.empleador, v.proveedor].filter(Boolean).join('-'), // [54] Texto 8
+      v.descripcionViaje                  || '', // [55] Texto 9
+      v.segundoConductorNombre            || '', // [56] Texto 10
+      v.rutaMaestra                       || '', // [57] Texto 11
+      '','','','',                               // [58-61]
+      v.conductorEmail                    || '', // [62]
+      etiquetas,                                 // [63]
+      '',                                        // [64]
+      '',                                        // [65]
+      v.rutaMaestra                       || '', // [66]
+      '','','','','','','','','','','',          // [67-77]
+      '','',                                     // [78-79]
+      email,                                     // [80]
+      '','','','',                               // [81-84]
+      '','','','',                               // [85-88]
+      email,                                     // [89] Texto 12
+      '','','','','','','','','','',             // [90-99] ← Texto13..PrioridadSecuencia
+    ];
+  }
+</script>

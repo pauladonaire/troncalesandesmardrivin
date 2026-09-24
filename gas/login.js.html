@@ -1,0 +1,67 @@
+<!-- ============================================================
+     ARCHIVO GAS: login.js.html  (tipo: Archivo HTML)
+     INSTRUCCIÓN: En el editor de GAS, crear un nuevo archivo HTML
+                  con el nombre "login.js" y pegar este contenido
+     ============================================================ -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Si ya tiene sesión válida, redirigir
+    if (isLoggedIn()) {
+      navigateTo('dashboard');
+      return;
+    }
+
+    var form     = document.getElementById('loginForm');
+    var emailEl  = document.getElementById('loginEmail');
+    var passEl   = document.getElementById('loginPassword');
+    var btnEl    = document.getElementById('loginBtn');
+    var errorEl  = document.getElementById('loginError');
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      handleLogin();
+    });
+
+    // Enter en cualquier campo
+    [emailEl, passEl].forEach(function(el) {
+      el.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') handleLogin();
+      });
+    });
+
+    async function handleLogin() {
+      var email    = (emailEl.value  || '').trim();
+      var password = (passEl.value   || '');
+
+      if (!email || !password) {
+        showLoginError('Ingresá tu email y contraseña.');
+        return;
+      }
+
+      hideEl(errorEl);
+      setLoading(btnEl, true);
+
+      try {
+        var res = await gasCall('login', email, password);
+        if (res && res.ok) {
+          saveSession(res.token, res.usuario);
+          window.location.href = window.location.href.split('?')[0]
+            + '?page=dashboard&token=' + res.token;
+        } else {
+          showLoginError(res ? res.error : 'Error al iniciar sesión.');
+        }
+      } catch(err) {
+        showLoginError('Error de conexión. Intentá nuevamente.');
+        console.error(err);
+      } finally {
+        setLoading(btnEl, false);
+      }
+    }
+
+    function showLoginError(msg) {
+      var div = document.getElementById('loginError');
+      div.textContent = msg;
+      div.classList.add('visible');
+    }
+  });
+</script>
