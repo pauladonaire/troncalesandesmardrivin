@@ -223,7 +223,16 @@ function crearGrupo(idx) {
 
     <div class="plan-grid" style="margin-bottom:16px">
       <div class="form-group"><label>Cód. Alternativo *</label><input type="text" class="f-alt" placeholder="*"></div>
-      <div class="form-group"><label>Unid. 1 *</label><input type="number" class="f-uni1" min="1" step="1" placeholder="*"></div>
+      <div class="form-group">
+        <label>Unid. 1 (KG) *</label>
+        <div style="display:flex;gap:6px">
+          <select class="f-modo-kg" style="flex:0 0 auto" onchange="actualizarModoKg(this)">
+            <option value="total">Total (se reparte)</option>
+            <option value="parada">Por parada</option>
+          </select>
+          <input type="number" class="f-uni1" min="1" step="1" placeholder="* KG totales" style="flex:1;min-width:0">
+        </div>
+      </div>
       <div class="form-group"><label>Unid. 2</label><input type="number" class="f-uni2" min="0" step="1" placeholder="0"></div>
       <div class="form-group"><label>Unid. 3</label><input type="number" class="f-uni3" min="0" step="1" placeholder="0"></div>
       <div class="form-group"><label>Vehículo *</label><div id="td-veh-${idx}"></div></div>
@@ -232,7 +241,7 @@ function crearGrupo(idx) {
       <div class="form-group"><label>Etiq. Costo</label><div id="td-costo-${idx}"><span class="no-etiquetas text-muted">—</span></div></div>
       <div class="form-group"><label>Proveedor *</label><div id="td-prov-${idx}"></div></div>
       <div class="form-group"><label>Etiq. Ingreso</label><div id="td-ingreso-${idx}"><span class="no-etiquetas text-muted">—</span></div></div>
-      <div class="form-group"><label>Ruta Maestra *</label><div id="td-ruta-${idx}"></div></div>
+      <div class="form-group"><label>Ruta Maestra (informativa) *</label><div id="td-ruta-${idx}"></div></div>
       <div class="form-group"><label>Conductor *</label><div id="td-cond-${idx}"></div></div>
       <div class="form-group"><label>2do Conductor</label><div id="td-cond2-${idx}"></div></div>
       <div class="form-group"><label>Descripción</label><input type="text" class="f-desc" placeholder="Opcional"></div>
@@ -355,6 +364,16 @@ function generarParadas(elDentroDelGrupo) {
     mount.style.flex = '1';
     fila.appendChild(label);
     fila.appendChild(mount);
+
+    const kgInput = document.createElement('input');
+    kgInput.type        = 'number';
+    kgInput.className   = 'f-parada-kg';
+    kgInput.min         = '0';
+    kgInput.step        = '1';
+    kgInput.placeholder = 'KG *';
+    kgInput.style.cssText = 'width:90px;flex:0 0 auto';
+    fila.appendChild(kgInput);
+
     lista.appendChild(fila);
 
     const refParada = crearDropdownSimple({
@@ -368,8 +387,22 @@ function generarParadas(elDentroDelGrupo) {
       onChange: () => {}
     });
     mount.appendChild(refParada.contenedor);
-    refs.paradas.push(refParada);
+    refs.paradas.push({ dir: refParada, kg: kgInput });
   }
+
+  actualizarModoKg(card.querySelector('.f-modo-kg'));
+}
+
+// ── Modo de carga de KG (Unid. 1): total repartido entre todas las paradas, o uno por parada ──
+
+function actualizarModoKg(selectEl) {
+  const card = selectEl.closest('.card');
+  const modo = selectEl.value; // 'total' | 'parada'
+  const uni1 = card.querySelector('.f-uni1');
+  if (uni1) uni1.style.display = modo === 'total' ? '' : 'none';
+  card.querySelectorAll('.f-parada-kg').forEach(k => {
+    k.style.display = modo === 'parada' ? '' : 'none';
+  });
 }
 
 function eliminarGrupo(btn) {
@@ -581,8 +614,15 @@ function validarGrupos() {
     const altEl = card.querySelector('.f-alt');
     toggleError(altEl, !altEl?.value?.trim()) && (ok = false);
 
-    const uni1 = card.querySelector('.f-uni1');
-    toggleError(uni1, !uni1?.value || parseInt(uni1.value, 10) < 1) && (ok = false);
+    const modoKg = card.querySelector('.f-modo-kg')?.value || 'total';
+    if (modoKg === 'total') {
+      const uni1 = card.querySelector('.f-uni1');
+      toggleError(uni1, !uni1?.value || parseInt(uni1.value, 10) < 1) && (ok = false);
+    } else {
+      (refs.paradas || []).forEach(p => {
+        toggleError(p?.kg, !p?.kg?.value || parseInt(p.kg.value, 10) < 1) && (ok = false);
+      });
+    }
 
     toggleError(refs.veh?.input,  !refs.veh?.getValue())  && (ok = false);
     toggleError(refs.prov?.input, !refs.prov?.getValue()) && (ok = false);
@@ -601,7 +641,7 @@ function validarGrupos() {
 
     if (!refs.paradas || refs.paradas.length < 2) { ok = false; }
     (refs.paradas || []).forEach(p => {
-      toggleError(p?.input, !p?.getValue()) && (ok = false);
+      toggleError(p?.dir?.input, !p?.dir?.getValue()) && (ok = false);
     });
   });
 
@@ -628,9 +668,26 @@ function recolectarViajes() {
     const c2Extra = refs.cond2?.getExtra() || {};
 
     const codigoGrupo = `${codigoBase}-${idx + 1}`;
+    const paradas = refs.paradas || [];
+
+    // KG (Unidades_1) por parada: o el valor propio de cada una, o el total
+    // del vehículo repartido en partes iguales entre TODAS las paradas
+    // (incluido el origen) — el resto de la división exacta va a las
+    // primeras paradas, para que la suma dé el total cargado.
+    const modoKg = card.querySelector('.f-modo-kg')?.value || 'total';
+    let kgPorParada;
+    if (modoKg === 'parada') {
+      kgPorParada = paradas.map(p => p.kg?.value || '');
+    } else {
+      const total = parseInt(card.querySelector('.f-uni1')?.value, 10) || 0;
+      const n     = paradas.length || 1;
+      const base  = Math.floor(total / n);
+      const resto = total - base * n;
+      kgPorParada = paradas.map((_, i) => String(base + (i < resto ? 1 : 0)));
+    }
+
     const camposComunes = {
       codigoAlternativo:      card.querySelector('.f-alt')?.value  || '',
-      unidades1:              card.querySelector('.f-uni1')?.value || '',
       unidades2:              card.querySelector('.f-uni2')?.value || '',
       unidades3:              card.querySelector('.f-uni3')?.value || '',
       vehiculo:               refs.veh?.getValue()                || '',
@@ -644,15 +701,22 @@ function recolectarViajes() {
       conductorEmail:         cExtra.email                        || '',
       conductorNombre:        cExtra.nombre                       || '',
       segundoConductorNombre: c2Extra.nombre                      || '',
-      descripcionViaje:       card.querySelector('.f-desc')?.value || ''
+      descripcionViaje:       card.querySelector('.f-desc')?.value || '',
+      // La Ruta Maestra elegida arriba es solo informativa acá (queda en
+      // Texto 11) — no se escribe en la columna "Ruta Maestra" real, para
+      // que el envío automático a Aker no la trate como una ruta a expandir.
+      omitirRutaMaestraColumna: true,
+      numeroViaje:              1
     };
 
-    (refs.paradas || []).forEach((paradaRef, p) => {
+    paradas.forEach((paradaRef, p) => {
       viajes.push(Object.assign({}, camposComunes, {
-        codigoDespacho:  `${codigoGrupo} (${p + 1})`,
-        codigoRuta:      codigoGrupo,
-        posicion:        p + 1,
-        codigoDireccion: paradaRef.getValue() || ''
+        codigoDespacho:     `${codigoGrupo} (${p + 1})`,
+        codigoRuta:         codigoGrupo,
+        posicion:           p + 1,
+        prioridadSecuencia: p + 1,
+        codigoDireccion:    paradaRef.dir.getValue() || '',
+        unidades1:          kgPorParada[p] || ''
       }));
     });
   });
@@ -864,7 +928,7 @@ function refrescarGruposExistentes() {
     if (refs.cond)  refs.cond.setOpciones(tripOpciones);
     if (refs.cond2) refs.cond2.setOpciones(tripOpciones);
 
-    (refs.paradas || []).forEach(p => p.setOpciones(dirOpciones));
+    (refs.paradas || []).forEach(p => p.dir.setOpciones(dirOpciones));
 
     const vCode   = refs.veh?.getValue();
     const pNombre = refs.prov?.getValue();

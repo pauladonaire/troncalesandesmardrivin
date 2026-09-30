@@ -211,7 +211,7 @@ function construirFilaViaje_(v, planDatos, emailUsuario) {
     '',                                       // [42] Mail en camino a direccion
     '',                                       // [43] Mail entrega finalizada
     v.codigoRuta || v.codigoDespacho   || '', // [44] Código de ruta — normalmente = col [3]; en Viajes con Paradas es el código compartido por todas las paradas de un mismo vehículo (agrupador para Aker)
-    '',                                       // [45] Número de viaje
+    v.numeroViaje != null ? v.numeroViaje : '', // [45] Número de viaje — en Viajes con Paradas siempre 1 (identifica que todas las paradas son UN mismo viaje)
     '',                                       // [46] Tipo Unidad
     '',                                       // [47] Texto 1
     '',                                       // [48] Texto 2
@@ -232,7 +232,7 @@ function construirFilaViaje_(v, planDatos, emailUsuario) {
     etiquetas,                                // [63] Costo Asignación
     '',                                       // [64] Columna dummy
     '',                                       // [65] Fecha Facturación
-    v.rutaMaestra                      || '', // [66] Ruta Maestra
+    v.omitirRutaMaestraColumna ? '' : (v.rutaMaestra || ''), // [66] Ruta Maestra — en Viajes con Paradas se deja vacía a propósito (la Ruta Maestra elegida ahí es solo informativa, va en Texto 11 [57], no acá — evita que el envío automático a Aker la trate como una ruta maestra real a expandir)
     '',                                       // [67] Descripción Despacho
     '',                                       // [68] Telefono contacto ruta aprobada
     '',                                       // [69] Telefono contacto ruta iniciada
@@ -265,6 +265,6 @@ function construirFilaViaje_(v, planDatos, emailUsuario) {
     '',                                       // [96] Texto 19
     '',                                       // [97] Texto 20
     '',                                       // [98] Código Empleador
-    ''                                        // [99] Prioridad de Secuencia
+    v.prioridadSecuencia != null ? v.prioridadSecuencia : '' // [99] Prioridad de Secuencia — en Viajes con Paradas: 1,2,3... según el orden de cada parada
   ];
 }
