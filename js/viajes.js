@@ -916,7 +916,11 @@ async function ejecutarCarga(viajes) {
   const res = await gasCall('crearPlanillaViajes', { viajes, planDatos: planCreado });
   overlay.classList.remove('active');
   if (!res.ok) throw new Error(res.error || 'Error al crear planilla en Drive');
-  document.getElementById('successFileUrl').href = res.fileUrl || '#';
+  const urlPlanilla = res.fileUrl || (res.fileId ? 'https://docs.google.com/spreadsheets/d/' + res.fileId + '/edit' : '');
+  if (!urlPlanilla) {
+    alert('Los viajes se cargaron, pero no se pudo obtener el link de la planilla. Buscala en Drive como "Troncales_' + planCreado.nombre + '_' + planCreado.fecha + '".');
+  }
+  document.getElementById('successFileUrl').href = urlPlanilla || '#';
   document.getElementById('paso2').classList.remove('active');
   document.getElementById('pasoExito').style.display = 'block';
   renderSteps(3);
