@@ -199,7 +199,7 @@ function construirFilaViaje_(v, planDatos, emailUsuario) {
     '',                                       // [30] Código del artículo
     '',                                       // [31] Descripción del artículo
     '',                                       // [32] Exclusividad
-    '',                                       // [33] Posicion
+    v.posicion != null ? v.posicion : '',     // [33] Posicion — orden de la parada (Viajes con Paradas; vacío en los demás módulos)
     v.proveedor                        || '', // [34] Proveedor
     '',                                       // [35] Inicio ventana 2
     '',                                       // [36] Fin ventana 2
@@ -210,7 +210,7 @@ function construirFilaViaje_(v, planDatos, emailUsuario) {
     '',                                       // [41] Mail iniciar ruta
     '',                                       // [42] Mail en camino a direccion
     '',                                       // [43] Mail entrega finalizada
-    v.codigoDespacho                   || '', // [44] Código de ruta (= col [3])
+    v.codigoRuta || v.codigoDespacho   || '', // [44] Código de ruta — normalmente = col [3]; en Viajes con Paradas es el código compartido por todas las paradas de un mismo vehículo (agrupador para Aker)
     '',                                       // [45] Número de viaje
     '',                                       // [46] Tipo Unidad
     '',                                       // [47] Texto 1

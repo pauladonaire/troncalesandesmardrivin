@@ -15,6 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('userName').textContent    = SESSION.nombre_completo;
   document.getElementById('userRolBadge').textContent = SESSION.rol;
 
+  if (SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO') {
+    const sbParadas = document.getElementById('sbParadasLink');
+    if (sbParadas) sbParadas.style.display = 'flex';
+  }
+
   document.getElementById('btn-aplicar').addEventListener('click', () => {
     viajesFiltrados = aplicarFiltros(todosLosViajes);
     paginaActual = 1;

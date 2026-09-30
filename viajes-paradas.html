@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Viajes — Troncales</title>
+  <title>Viajes con Paradas — Troncales</title>
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/viajes.css">
 </head>
@@ -39,7 +39,7 @@
         <!-- Contenido principal -->
         <div id="contenido" style="display:none">
 
-          <!-- Sync datos maestros (solo admins) -->
+          <!-- Sync datos maestros -->
           <div id="secSyncViajes" class="sync-collapsible-section" style="display:none">
             <button class="sync-toggle-btn" onclick="toggleSyncPanel()">
               <span>↻ Actualizar datos maestros</span>
@@ -100,7 +100,7 @@
             <div class="step-divider"></div>
             <div class="step">
               <div class="step-num">2</div>
-              <span>Cargar Viajes</span>
+              <span>Vehículos y Paradas</span>
             </div>
             <div class="step-divider"></div>
             <div class="step">
@@ -117,7 +117,7 @@
                 <div class="plan-grid">
                   <div class="form-group">
                     <label for="nombrePlan">Nombre del plan *</label>
-                    <input type="text" id="nombrePlan" required placeholder="Ej: Plan Mendoza 04/2026">
+                    <input type="text" id="nombrePlan" required placeholder="Ej: Plan Paradas 04/2026">
                   </div>
                   <div class="form-group">
                     <label for="fechaViaje">Fecha del viaje *</label>
@@ -143,10 +143,10 @@
             </div>
           </div>
 
-          <!-- PASO 2 — Tabla de viajes -->
+          <!-- PASO 2 — Vehículos y sus paradas -->
           <div class="paso" id="paso2">
             <div class="card">
-              <h2 class="card-title">Paso 2 — Carga de Viajes</h2>
+              <h2 class="card-title">Paso 2 — Vehículos y Paradas</h2>
 
               <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:var(--color-text-muted);">
                 <span>Plan: <strong style="color:var(--color-white)" id="resumenNombrePlan"></strong></span>
@@ -154,15 +154,12 @@
                 <span>Esquema: <strong style="color:var(--color-white)" id="resumenEsquema"></strong></span>
               </div>
 
-              <div class="cantidad-section">
-                <div class="form-group">
-                  <label for="cantidadFilas">Cantidad de viajes</label>
-                  <input type="number" id="cantidadFilas" min="1" max="50" value="1" style="width:100px">
-                </div>
-                <button class="btn btn-secondary" onclick="generarFilas()">Generar filas</button>
-              </div>
+              <p style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;">
+                Cada bloque es UN vehículo con su propio recorrido de paradas (mínimo 2: origen y destino).
+                Agregá otro bloque si necesitás más de un vehículo en este plan.
+              </p>
 
-              <!-- Sync panel Paso 2 (Mejora 14 — todos los roles) -->
+              <!-- Sync panel Paso 2 -->
               <div class="sync-collapsible-section" style="margin-bottom:16px">
                 <button class="sync-toggle-btn" onclick="toggleSyncPanel2()">
                   <span>↻ Actualizar datos maestros</span>
@@ -214,51 +211,26 @@
                 </div>
               </div>
 
-              <!-- Tabla dinámica -->
-              <div id="tablaSection" style="display:none">
-                <div class="trips-table-wrap">
-                  <table class="trips-table">
-                    <thead>
-                      <tr>
-                        <th class="col-del"></th>
-                        <th class="col-despacho">Código Despacho</th>
-                        <th class="col-alt">Cód. Alternativo</th>
-                        <th class="col-uni required">Unid. 1</th>
-                        <th class="col-uni">Unid. 2</th>
-                        <th class="col-uni">Unid. 3</th>
-                        <th class="col-dir required">Dirección</th>
-                        <th class="col-vehiculo required">Vehículo</th>
-                        <th class="col-arrastre">Arrastre</th>
-                        <th class="col-empleador">Empleador</th>
-                        <th class="col-etiqueta">Etiq. Costo</th>
-                        <th class="col-proveedor">Proveedor</th>
-                        <th class="col-etiqueta">Etiq. Ingreso</th>
-                        <th class="col-ruta">Ruta Maestra</th>
-                        <th class="col-conductor required">Conductor</th>
-                        <th class="col-conductor">2do Conductor</th>
-                        <th class="col-descripcion">Descripción</th>
-                      </tr>
-                    </thead>
-                    <tbody id="tripsTbody"></tbody>
-                  </table>
-                </div>
+              <!-- Grupos dinámicos (uno por vehículo) -->
+              <div id="gruposContainer"></div>
 
-                <div style="margin-top:12px;font-size:12px;color:var(--color-text-muted)">
-                  Campos marcados con <strong style="color:var(--color-danger)">*</strong> son obligatorios.
-                </div>
+              <button class="btn btn-secondary" style="margin-top:8px" onclick="agregarGrupo()">
+                + Agregar vehículo
+              </button>
 
-                <div id="validacionError" class="error-msg" style="display:none;margin-top:10px;"></div>
+              <div id="validacionError" class="error-msg" style="display:none;margin-top:16px"></div>
+
+              <div style="margin-top:16px">
+                <button id="btnCargarViajes" class="btn btn-primary" style="display:none"
+                        onclick="cargarViajes()">
+                  Cargar Viajes
+                </button>
+
+                <button class="btn btn-outline btn-sm" style="margin-left:8px"
+                        onclick="transicionarPaso(1)">
+                  ← Volver al Plan
+                </button>
               </div>
-
-              <button id="btnCargarViajes" class="btn btn-primary" style="display:none;margin-top:16px"
-                      onclick="cargarViajes()">
-                Cargar Viajes
-              </button>
-
-              <button class="btn btn-outline btn-sm" style="margin-top:16px;margin-left:8px"
-                      onclick="transicionarPaso(1)">
-                ← Volver al Plan
-              </button>
             </div>
           </div>
 
@@ -267,7 +239,7 @@
             <div class="card">
               <div class="success-panel">
                 <div class="success-icon">✅</div>
-                <h2>¡Viajes cargados correctamente!</h2>
+                <h2>¡Viajes con Paradas cargados correctamente!</h2>
                 <p>La planilla fue generada y guardada en Google Drive.</p>
                 <div class="success-actions">
                   <a id="successFileUrl" href="#" target="_blank" class="btn btn-primary">
@@ -292,7 +264,11 @@
       <h3 class="modal-title">Confirmar carga de viajes</h3>
       <div class="confirm-summary">
         <div class="confirm-row">
-          <span class="confirm-row-label">Cantidad de viajes</span>
+          <span class="confirm-row-label">Vehículos</span>
+          <span class="confirm-row-value" id="resNGrupos"></span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Paradas totales (filas)</span>
           <span class="confirm-row-value" id="resNViajes"></span>
         </div>
         <div class="confirm-row">
@@ -342,7 +318,7 @@
       <a href="viajes.html" class="sidebar-item">🚛 Generar Viajes</a>
       <a href="viajes_meli.html" class="sidebar-item">📦 Generar Viajes Meli</a>
       <a href="viajes-generales.html" class="sidebar-item">📋 Viajes Generales Import.</a>
-      <a href="viajes-paradas.html" class="sidebar-item" id="sbParadasLink" style="display:none">🛑 Viajes con Paradas</a>
+      <a href="viajes-paradas.html" class="sidebar-item">🛑 Viajes con Paradas</a>
       <div class="sidebar-divider"></div>
       <div id="sbSyncItems" style="display:none">
         <button class="sidebar-item" onclick="toggleSidebarSync()" style="justify-content:space-between;width:100%">
@@ -426,6 +402,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="js/api.js"></script>
   <script src="js/componentes.js"></script>
-  <script src="js/viajes.js"></script>
+  <script src="js/viajes-paradas.js"></script>
 </body>
 </html>

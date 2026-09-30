@@ -12,6 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const isAdmin  = ['ADMIN_GENERAL', 'ADMIN_TRAFICO'].includes(SESSION.rol);
   const isSuperAdmin = SESSION.rol === 'ADMIN_GENERAL';
 
+  if (isAdmin) {
+    document.getElementById('navParadas').style.display   = 'flex';
+    document.getElementById('quickParadas').style.display = 'flex';
+  }
   if (isAdmin)     document.getElementById('navActualizar').style.display = 'flex';
   if (isSuperAdmin) document.getElementById('navAdmin').style.display     = 'flex';
   document.getElementById('navRutas').style.display     = 'flex';

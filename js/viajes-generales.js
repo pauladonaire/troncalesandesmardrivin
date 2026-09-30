@@ -128,6 +128,10 @@ function inicializarPaso1() {
     if (sbAdmin) sbAdmin.style.display = 'flex';
     if (sbDiv)   sbDiv.style.display   = 'block';
   }
+  if (SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO') {
+    const sbParadas = document.getElementById('sbParadasLink');
+    if (sbParadas) sbParadas.style.display = 'flex';
+  }
   if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min = hoy;

@@ -151,6 +151,10 @@ function inicializarPaso1() {
   if (sbArrastres)    sbArrastres.style.display    = 'flex';
   if (sbDatosDivider) sbDatosDivider.style.display = 'block';
   if (sbReportes) sbReportes.style.display = 'flex';
+  if (SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO') {
+    const sbParadas = document.getElementById('sbParadasLink');
+    if (sbParadas) sbParadas.style.display = 'flex';
+  }
   if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('fechaViaje').min      = hoy;

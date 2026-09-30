@@ -13,6 +13,12 @@
 // solas. Lo que no se pueda enviar (falta un dato, Aker lo rechaza, etc.)
 // queda igual registrado en LogsAker con el error, para revisar a mano.
 //
+// Filas agrupadas ("Viajes con Paradas"): cuando varias filas comparten el
+// mismo "Código de ruta" (una fila por parada, mismo vehículo), se arman y
+// mandan como UN solo itinerario con todas esas paradas — no una llamada a
+// Aker por fila. No se consulta RUTAS_DETALLE en ese caso: las paradas ya
+// vienen explícitas. Ver construirPayloadItinerarioAgrupado_.
+//
 // probarEnvioAkerFila() sigue disponible para pruebas puntuales manuales,
 // fila por fila, con o sin simulación — se corre a mano desde este editor.
 //
@@ -87,15 +93,50 @@ function procesarColaAker_() {
   var desde = cursor + 1;
   var hasta = Math.min(ultimaFila, desde + AKER_MAX_POR_CORRIDA - 1);
 
+  var iCodigoRuta = headers.indexOf('Código de ruta');
+
+  // No cortar un grupo de "Viajes con Paradas" a la mitad entre corridas:
+  // si la última fila del lote comparte Código de ruta con la fila
+  // siguiente (todavía sin procesar), se extiende el lote para completarlo.
+  while (hasta < ultimaFila && iCodigoRuta !== -1) {
+    var rutaActual    = values[hasta - 1][iCodigoRuta];
+    var rutaSiguiente = values[hasta][iCodigoRuta]; // values[hasta] = fila (hasta+1)
+    if (rutaActual && rutaActual === rutaSiguiente) { hasta++; } else { break; }
+  }
+
+  // Agrupa las filas del lote por "Código de ruta". En el flujo normal cada
+  // despacho es su propio grupo de 1 (Código de ruta = Código de despacho).
+  // En "Viajes con Paradas", varias filas — una por parada — comparten el
+  // mismo Código de ruta y se mandan a Aker como UN solo itinerario.
+  var grupos      = {};
+  var ordenGrupos = [];
   for (var fila = desde; fila <= hasta; fila++) {
     var row = values[fila - 1];
-    try {
-      var payload = construirPayloadItinerarioAker_(headers, row, {});
-      enviarPayloadAker_(payload, fila);
-    } catch(eBuild) {
-      logIntentoAker_({ ok: false, filaSheet: fila, error: 'Error armando payload: ' + eBuild.message });
-    }
+    var codigoRuta = (iCodigoRuta !== -1 ? row[iCodigoRuta] : '') || row[3]; // col [3] = Código de despacho
+    if (!grupos[codigoRuta]) { grupos[codigoRuta] = []; ordenGrupos.push(codigoRuta); }
+    grupos[codigoRuta].push({ fila: fila, row: row });
   }
+
+  ordenGrupos.forEach(function(codigoRuta) {
+    var items = grupos[codigoRuta];
+    if (items.length > 1) {
+      var filasStr = items.map(function(it) { return it.fila; }).join(',');
+      try {
+        var payload = construirPayloadItinerarioAgrupado_(headers, items);
+        enviarPayloadAker_(payload, filasStr);
+      } catch(eBuild) {
+        logIntentoAker_({ ok: false, filaSheet: filasStr, error: 'Error armando itinerario agrupado: ' + eBuild.message });
+      }
+    } else {
+      var it = items[0];
+      try {
+        var payload = construirPayloadItinerarioAker_(headers, it.row, {});
+        enviarPayloadAker_(payload, it.fila);
+      } catch(eBuild) {
+        logIntentoAker_({ ok: false, filaSheet: it.fila, error: 'Error armando payload: ' + eBuild.message });
+      }
+    }
+  });
 
   props.setProperty(AKER_CURSOR_PROP, String(hasta));
 
@@ -332,6 +373,89 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
 
   return {
     codigo_externo: codigoDespacho,
+    fecha_inicio:   fechaInicio,
+    fecha_fin:      fechaFin,
+    nota:           nota,
+    armar_ruta:     true,
+    vehiculos:      vehiculos,
+    paradas:        paradas
+  };
+}
+
+/**
+ * Arma el itinerario de Aker para un GRUPO de filas de ViajesTotalesTroncales
+ * que comparten "Código de ruta" — el caso de "Viajes con Paradas", donde
+ * cada fila es UNA parada del mismo vehículo/recorrido. A diferencia de
+ * construirPayloadItinerarioAker_, acá NO se consulta RUTAS_DETALLE — las
+ * paradas ya vienen explícitas, una por fila, cada una con su propio
+ * Código de dirección.
+ *
+ * @param {Array}  headers
+ * @param {Array<{fila:number, row:Array}>} items  filas del grupo, en
+ *        cualquier orden — se ordenan acá por la columna "Posicion".
+ */
+function construirPayloadItinerarioAgrupado_(headers, items) {
+  function val(row, nombreCol) {
+    var i = headers.indexOf(nombreCol);
+    return (i === -1 || row[i] == null) ? '' : String(row[i]);
+  }
+
+  var iPosicion = headers.indexOf('Posicion');
+  items = items.slice().sort(function(a, b) {
+    var pa = iPosicion !== -1 ? (Number(a.row[iPosicion]) || 0) : 0;
+    var pb = iPosicion !== -1 ? (Number(b.row[iPosicion]) || 0) : 0;
+    return pa - pb;
+  });
+
+  var primero = items[0].row;
+  var codigoRuta      = val(primero, 'Código de ruta') || val(primero, 'Código de despacho');
+  var fechaMaxEntrega = val(primero, 'Fecha Maxima de Entrega');
+  var vehiculo        = val(primero, 'Asignación vehículo');
+  var arrastre         = val(primero, 'Texto 7');
+  var nota             = val(primero, 'Texto 8');
+  var fechaInicioCol   = val(primero, 'Fecha Inicio Viaje');
+  if (!fechaInicioCol && primero.length > 103) {
+    fechaInicioCol = primero[103] != null ? String(primero[103]) : ''; // respaldo posicional, ver construirPayloadItinerarioAker_
+  }
+
+  if (!codigoRuta)      throw new Error('El grupo no tiene Código de ruta/despacho');
+  if (!fechaMaxEntrega) throw new Error('El grupo no tiene Fecha Máxima de Entrega — no se puede armar fecha_fin');
+  if (!fechaInicioCol)  throw new Error('El grupo no tiene fecha de inicio (columna "Fecha Inicio Viaje" vacía)');
+
+  var fechaInicio = completarFechaHora_(fechaInicioCol, '08:00:00');
+  var fechaFin    = completarFechaHora_(fechaMaxEntrega, '23:59:59');
+
+  var vehiculos = [];
+  if (vehiculo) {
+    var vehObj = { patente: vehiculo };
+    if (arrastre) vehObj.acoplado = arrastre;
+    vehiculos.push(vehObj);
+  }
+
+  var paradas = items.map(function(item, i) {
+    var row = item.row;
+    var codigoDireccion = val(row, 'Código de dirección');
+    var parada = {
+      orden:          i,
+      codigo_externo: codigoDireccion,
+      // Última parada = destino real → usa el vencimiento del viaje. Las
+      // intermedias no tienen un horario propio en este módulo (a
+      // diferencia de una Ruta Maestra con hora_inicio por parada), así
+      // que van con la misma fecha/hora de inicio del viaje.
+      fecha_ingreso:  (i === items.length - 1) ? fechaFin : fechaInicio,
+      stop_type:      'drop'
+    };
+    var direccion = buscarDireccionPorCodigo_(codigoDireccion);
+    if (direccion) {
+      parada.nombre   = direccion.name || codigoDireccion;
+      parada.latitud  = direccion.lat;
+      parada.longitud = direccion.lng;
+    }
+    return parada;
+  });
+
+  return {
+    codigo_externo: codigoRuta,
     fecha_inicio:   fechaInicio,
     fecha_fin:      fechaFin,
     nota:           nota,
