@@ -223,14 +223,15 @@ function crearGrupo(idx) {
 
     <div class="plan-grid" style="margin-bottom:16px">
       <div class="form-group"><label>Cód. Alternativo *</label><input type="text" class="f-alt" placeholder="*"></div>
-      <div class="form-group">
+      <div class="form-group" style="grid-column: span 2">
         <label>Unid. 1 (KG) *</label>
-        <div style="display:flex;gap:6px">
-          <select class="f-modo-kg" style="flex:0 0 auto" onchange="actualizarModoKg(this)">
-            <option value="total">Total (se reparte)</option>
-            <option value="parada">Por parada</option>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select class="f-modo-kg" style="flex:0 0 auto;width:auto" onchange="actualizarModoKg(this)">
+            <option value="total">Cargar un total (se reparte entre las paradas)</option>
+            <option value="parada">Cargar uno distinto por cada parada</option>
           </select>
-          <input type="number" class="f-uni1" min="1" step="1" placeholder="* KG totales" style="flex:1;min-width:0">
+          <span class="f-uni1-label" style="font-size:12px;color:var(--color-text-muted)">Total de KG del vehículo:</span>
+          <input type="number" class="f-uni1" min="1" step="1" placeholder="* Ej: 1000" style="width:120px">
         </div>
       </div>
       <div class="form-group"><label>Unid. 2</label><input type="number" class="f-uni2" min="0" step="1" placeholder="0"></div>
@@ -396,10 +397,12 @@ function generarParadas(elDentroDelGrupo) {
 // ── Modo de carga de KG (Unid. 1): total repartido entre todas las paradas, o uno por parada ──
 
 function actualizarModoKg(selectEl) {
-  const card = selectEl.closest('.card');
-  const modo = selectEl.value; // 'total' | 'parada'
-  const uni1 = card.querySelector('.f-uni1');
-  if (uni1) uni1.style.display = modo === 'total' ? '' : 'none';
+  const card  = selectEl.closest('.card');
+  const modo  = selectEl.value; // 'total' | 'parada'
+  const uni1  = card.querySelector('.f-uni1');
+  const label = card.querySelector('.f-uni1-label');
+  if (uni1)  uni1.style.display  = modo === 'total' ? '' : 'none';
+  if (label) label.style.display = modo === 'total' ? '' : 'none';
   card.querySelectorAll('.f-parada-kg').forEach(k => {
     k.style.display = modo === 'parada' ? '' : 'none';
   });
