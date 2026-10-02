@@ -712,10 +712,16 @@ function recolectarViajes() {
       numeroViaje:              1
     };
 
+    // El Código de ruta de este módulo lleva el prefijo "CRPP-" para
+    // distinguirlo de los códigos de ruta de los demás módulos (Aker lo usa
+    // tal cual como clave de agrupación, así que el prefijo no afecta el
+    // agrupado, solo lo identifica).
+    const codigoRutaConPrefijo = `CRPP-${codigoGrupo}`;
+
     paradas.forEach((paradaRef, p) => {
       viajes.push(Object.assign({}, camposComunes, {
         codigoDespacho:     `${codigoGrupo} (${p + 1})`,
-        codigoRuta:         codigoGrupo,
+        codigoRuta:         codigoRutaConPrefijo,
         posicion:           p + 1,
         prioridadSecuencia: p + 1,
         codigoDireccion:    paradaRef.dir.getValue() || '',
