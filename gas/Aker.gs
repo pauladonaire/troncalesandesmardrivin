@@ -550,6 +550,45 @@ function eventosAker_() {
   return { entrada_salida: true, panico: true, motivo_detencion: true };
 }
 
+/**
+ * Diagnóstico manual: para un email de conductor puntual, muestra qué
+ * encuentra (o no) buscarConductorPorEmail_ en TripulantesTroncales. Correr
+ * desde el editor (▶ Ejecutar, con "TEST_verificarChoferAker" seleccionada)
+ * después de cambiar el EMAIL de acá abajo por el "Correo Conductor" real
+ * de la fila que no mandó choferes a Aker.
+ *
+ * Causas típicas si da null:
+ *  - Todavía no corriste syncTripulantes() después del fix de Drivin.gs
+ *    (la columna DNI sigue vacía de antes).
+ *  - Ese email no tiene fila en TripulantesTroncales.
+ *  - Tiene fila pero la columna DNI está vacía en Driv.in para ese usuario.
+ */
+function TEST_verificarChoferAker() {
+  var EMAIL = 'conductor@ejemplo.com'; // ← cambiar por el email real a probar
+
+  var cfg  = CONFIG.SHEETS.TRIPULANTES;
+  var rows = sheetsRead_(cfg.id, cfg.tab);
+  console.log('TripulantesTroncales: ' + (rows.length - 1) + ' filas de datos.');
+
+  var norm = EMAIL.trim().toLowerCase();
+  var encontrado = null;
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1] || '').trim().toLowerCase() === norm) { encontrado = rows[i]; break; }
+  }
+  if (!encontrado) {
+    console.log('No hay ninguna fila en TripulantesTroncales con email = "' + EMAIL + '". Revisá que el email cargado en el viaje coincida EXACTO con el de la planilla.');
+  } else {
+    console.log('Fila encontrada: email=' + encontrado[1] + ' | nombre=' + encontrado[4] + ' | phone=' + encontrado[5] + ' | dni="' + encontrado[6] + '"');
+    if (!encontrado[6]) {
+      console.log('→ La columna DNI está vacía para este conductor. Si syncTripulantes() ya corrió después del fix de Drivin.gs y sigue vacía, es que Driv.in no tiene cargado el DNI para este usuario puntual.');
+    }
+  }
+
+  var resultado = buscarConductorPorEmail_(EMAIL);
+  console.log('buscarConductorPorEmail_ devuelve: ' + JSON.stringify(resultado));
+  return resultado;
+}
+
 /** Busca una dirección en DireccionesTroncales por su código. */
 function buscarDireccionPorCodigo_(codigo) {
   if (!codigo) return null;
