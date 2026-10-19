@@ -19,6 +19,16 @@
 // Aker por fila. No se consulta RUTAS_DETALLE en ese caso: las paradas ya
 // vienen explícitas. Ver construirPayloadItinerarioAgrupado_.
 //
+// Datos extra que suma la API v1.1 de Aker (ver buscarConductorPorEmail_ /
+// armarDatosChoferAker_ / eventosAker_):
+//   - choferes[] + vehiculos[].chofer_documento: se busca el DNI/CUIL del
+//     conductor en TripulantesTroncales por email (columna "dni", sincronizada
+//     desde Driv.in en syncTripulantes/Drivin.gs). Si no hay email o no se
+//     encuentra el documento, el viaje se manda igual, sin choferes.
+//   - eventos: entrada_salida + panico + motivo_detencion, siempre en true.
+//   - NO se manda bill/nro_contenedor/es_custodio (no aplica a la operación)
+//     ni fecha_egreso por parada (no hay tiempo de servicio real cargado).
+//
 // probarEnvioAkerFila() sigue disponible para pruebas puntuales manuales,
 // fila por fila, con o sin simulación — se corre a mano desde este editor.
 //
@@ -297,6 +307,8 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
   var arrastre         = val('Texto 7');
   var nota             = val('Texto 8');
   var rutaMaestra      = val('Ruta Maestra');
+  var conductorEmail   = val('Correo Conductor');
+  var conductorNombre  = val('Texto 14');
   var fechaInicioCol   = val('Fecha Inicio Viaje'); // columna CZ — ver Excel.gs registrarViajesEnSheet_
   if (!fechaInicioCol && row.length > 103) {
     // Respaldo por posición fija: "Fecha Inicio Viaje" es SIEMPRE la 4ta
@@ -319,10 +331,13 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
   var fechaInicio = completarFechaHora_(fechaInicioBase, horaInicio);
   var fechaFin    = completarFechaHora_(fechaMaxEntrega, '23:59:59');
 
+  var datosChofer = armarDatosChoferAker_(conductorEmail, conductorNombre);
+
   var vehiculos = [];
   if (vehiculo) {
     var vehObj = { patente: vehiculo };
     if (arrastre) vehObj.acoplado = arrastre;
+    if (datosChofer) vehObj.chofer_documento = datosChofer.chofer_documento;
     vehiculos.push(vehObj);
   }
 
@@ -371,15 +386,18 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
     paradas.push(parada);
   }
 
-  return {
+  var payload = {
     codigo_externo: codigoDespacho,
     fecha_inicio:   fechaInicio,
     fecha_fin:      fechaFin,
     nota:           nota,
     armar_ruta:     true,
     vehiculos:      vehiculos,
-    paradas:        paradas
+    paradas:        paradas,
+    eventos:        eventosAker_()
   };
+  if (datosChofer) payload.choferes = [datosChofer.chofer];
+  return payload;
 }
 
 /**
@@ -413,6 +431,8 @@ function construirPayloadItinerarioAgrupado_(headers, items) {
   var vehiculo        = val(primero, 'Asignación vehículo');
   var arrastre         = val(primero, 'Texto 7');
   var nota             = val(primero, 'Texto 8');
+  var conductorEmail   = val(primero, 'Correo Conductor');
+  var conductorNombre  = val(primero, 'Texto 14');
   var fechaInicioCol   = val(primero, 'Fecha Inicio Viaje');
   if (!fechaInicioCol && primero.length > 103) {
     fechaInicioCol = primero[103] != null ? String(primero[103]) : ''; // respaldo posicional, ver construirPayloadItinerarioAker_
@@ -425,10 +445,13 @@ function construirPayloadItinerarioAgrupado_(headers, items) {
   var fechaInicio = completarFechaHora_(fechaInicioCol, '08:00:00');
   var fechaFin    = completarFechaHora_(fechaMaxEntrega, '23:59:59');
 
+  var datosChofer = armarDatosChoferAker_(conductorEmail, conductorNombre);
+
   var vehiculos = [];
   if (vehiculo) {
     var vehObj = { patente: vehiculo };
     if (arrastre) vehObj.acoplado = arrastre;
+    if (datosChofer) vehObj.chofer_documento = datosChofer.chofer_documento;
     vehiculos.push(vehObj);
   }
 
@@ -454,15 +477,18 @@ function construirPayloadItinerarioAgrupado_(headers, items) {
     return parada;
   });
 
-  return {
+  var payload = {
     codigo_externo: codigoRuta,
     fecha_inicio:   fechaInicio,
     fecha_fin:      fechaFin,
     nota:           nota,
     armar_ruta:     true,
     vehiculos:      vehiculos,
-    paradas:        paradas
+    paradas:        paradas,
+    eventos:        eventosAker_()
   };
+  if (datosChofer) payload.choferes = [datosChofer.chofer];
+  return payload;
 }
 
 /** Completa una fecha 'YYYY-MM-DD' con una hora si no la tiene ya. */
@@ -470,6 +496,58 @@ function completarFechaHora_(fecha, horaDefault) {
   fecha = String(fecha || '').trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha + ' ' + horaDefault;
   return fecha; // ya viene con hora, o es un formato inesperado — se manda tal cual
+}
+
+/**
+ * Busca un conductor en TripulantesTroncales por email y devuelve su
+ * documento (DNI/CUIL) y teléfono para mandarlos a Aker en choferes[].
+ * La columna "dni" viene de la API de Driv.in (campo "dni" — antes se leía
+ * mal como "document_number" y por eso quedaba siempre vacía, ver
+ * syncTripulantes en Drivin.gs). Si no hay email, o no se encuentra, o no
+ * tiene documento cargado, devuelve null y el llamador simplemente no manda
+ * choferes para ese viaje (no rompe nada de lo que ya funciona).
+ */
+function buscarConductorPorEmail_(email) {
+  if (!email) return null;
+  var cfg  = CONFIG.SHEETS.TRIPULANTES;
+  var rows = sheetsRead_(cfg.id, cfg.tab);
+  if (rows.length < 2) return null;
+
+  var norm = String(email).trim().toLowerCase();
+  // Columnas de TripulantesTroncales (ver syncTripulantes en Drivin.gs):
+  // [0] id, [1] email, [2] first_name, [3] last_name, [4] nombre_completo,
+  // [5] phone, [6] dni, [7] role_name, [8] is_active, [9] tags
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1] || '').trim().toLowerCase() === norm) {
+      var documento = String(rows[i][6] || '').trim();
+      if (!documento) return null;
+      return { documento: documento, telefono: String(rows[i][5] || '').trim() };
+    }
+  }
+  return null;
+}
+
+/**
+ * Arma, si es posible, el bloque {choferes, chofer_documento} para sumar al
+ * payload de Aker a partir del email/nombre del conductor del viaje. Si no
+ * hay email o no se encuentra el documento, devuelve null (sin choferes).
+ */
+function armarDatosChoferAker_(conductorEmail, conductorNombre) {
+  var datos = buscarConductorPorEmail_(conductorEmail);
+  if (!datos) return null;
+  return {
+    chofer_documento: datos.documento,
+    chofer: {
+      chofer_documento: datos.documento,
+      nombre: conductorNombre || '',
+      telefono: datos.telefono || ''
+    }
+  };
+}
+
+/** Eventos de monitoreo habilitados para los itinerarios que mandamos a Aker. */
+function eventosAker_() {
+  return { entrada_salida: true, panico: true, motivo_detencion: true };
 }
 
 /** Busca una dirección en DireccionesTroncales por su código. */

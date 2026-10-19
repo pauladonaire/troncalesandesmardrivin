@@ -87,7 +87,7 @@ function syncTripulantes() {
       u.last_name       || '',
       nombreCompleto,
       u.phone           || '',
-      u.document_number || '',
+      u.dni             || '',
       u.role_name       || '',
       u.is_active != null ? String(u.is_active) : '',
       Array.isArray(u.tags) ? u.tags.join(',') : (u.tags || '')
