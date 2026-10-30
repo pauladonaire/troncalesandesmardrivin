@@ -25,6 +25,10 @@
 //     conductor en TripulantesTroncales por email (columna "dni", sincronizada
 //     desde Driv.in en syncTripulantes/Drivin.gs). Si no hay email o no se
 //     encuentra el documento, el viaje se manda igual, sin choferes.
+//   - choferes[].transporte_codigo_externo: código (CUIT) del Empleador del
+//     viaje (Texto 13), buscado en SociosDeNegocioTroncales (columna "code",
+//     type="employer"). Si no hay match único, se manda el chofer igual sin
+//     ese campo — ver buscarCodigoSocioPorNombre_.
 //   - eventos: entrada_salida + panico + motivo_detencion, siempre en true.
 //   - NO se manda bill/nro_contenedor/es_custodio (no aplica a la operación)
 //     ni fecha_egreso por parada (no hay tiempo de servicio real cargado).
@@ -309,6 +313,7 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
   var rutaMaestra      = val('Ruta Maestra');
   var conductorEmail   = val('Correo Conductor');
   var conductorNombre  = val('Texto 14');
+  var empleadorNombre  = val('Texto 13');
   var fechaInicioCol   = val('Fecha Inicio Viaje'); // columna CZ — ver Excel.gs registrarViajesEnSheet_
   if (!fechaInicioCol && row.length > 103) {
     // Respaldo por posición fija: "Fecha Inicio Viaje" es SIEMPRE la 4ta
@@ -331,7 +336,7 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
   var fechaInicio = completarFechaHora_(fechaInicioBase, horaInicio);
   var fechaFin    = completarFechaHora_(fechaMaxEntrega, '23:59:59');
 
-  var datosChofer = armarDatosChoferAker_(conductorEmail, conductorNombre);
+  var datosChofer = armarDatosChoferAker_(conductorEmail, conductorNombre, empleadorNombre);
 
   var vehiculos = [];
   if (vehiculo) {
@@ -433,6 +438,7 @@ function construirPayloadItinerarioAgrupado_(headers, items) {
   var nota             = val(primero, 'Texto 8');
   var conductorEmail   = val(primero, 'Correo Conductor');
   var conductorNombre  = val(primero, 'Texto 14');
+  var empleadorNombre  = val(primero, 'Texto 13');
   var fechaInicioCol   = val(primero, 'Fecha Inicio Viaje');
   if (!fechaInicioCol && primero.length > 103) {
     fechaInicioCol = primero[103] != null ? String(primero[103]) : ''; // respaldo posicional, ver construirPayloadItinerarioAker_
@@ -445,7 +451,7 @@ function construirPayloadItinerarioAgrupado_(headers, items) {
   var fechaInicio = completarFechaHora_(fechaInicioCol, '08:00:00');
   var fechaFin    = completarFechaHora_(fechaMaxEntrega, '23:59:59');
 
-  var datosChofer = armarDatosChoferAker_(conductorEmail, conductorNombre);
+  var datosChofer = armarDatosChoferAker_(conductorEmail, conductorNombre, empleadorNombre);
 
   var vehiculos = [];
   if (vehiculo) {
@@ -528,20 +534,51 @@ function buscarConductorPorEmail_(email) {
 }
 
 /**
- * Arma, si es posible, el bloque {choferes, chofer_documento} para sumar al
- * payload de Aker a partir del email/nombre del conductor del viaje. Si no
- * hay email o no se encuentra el documento, devuelve null (sin choferes).
+ * Busca en SociosDeNegocioTroncales el "code" (CUIT/código externo) de un
+ * socio por nombre — se usa para mandar transporte_codigo_externo en
+ * choferes[] a partir del nombre de Empleador guardado en el viaje (Texto 13).
+ * Filtra por type = "employer" para no cruzar por error con un socio de otro
+ * tipo que tenga el mismo nombre. Si no hay match único, devuelve ''.
  */
-function armarDatosChoferAker_(conductorEmail, conductorNombre) {
+function buscarCodigoSocioPorNombre_(nombre) {
+  if (!nombre) return '';
+  var cfg  = CONFIG.SHEETS.SOCIOS;
+  var rows = sheetsRead_(cfg.id, cfg.tab);
+  if (rows.length < 2) return '';
+
+  var norm = String(nombre).trim().toUpperCase();
+  // Columnas de SociosDeNegocioTroncales (ver syncSocios en Drivin.gs):
+  // [0] id, [1] code, [2] name, [3] type, [4] address, [5] city, [6] country, [7] phone, [8] email, [9] tags
+  var encontrados = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][2] || '').trim().toUpperCase() === norm && String(rows[i][3] || '').trim().toLowerCase() === 'employer') {
+      encontrados.push(rows[i]);
+    }
+  }
+  if (encontrados.length !== 1) return ''; // sin match, o ambiguo (más de uno) — mejor no mandar nada
+  return String(encontrados[0][1] || '').trim();
+}
+
+/**
+ * Arma, si es posible, el bloque {choferes, chofer_documento} para sumar al
+ * payload de Aker a partir del email/nombre del conductor y el empleador del
+ * viaje. Si no hay email o no se encuentra el documento del conductor,
+ * devuelve null (sin choferes) — transporte_codigo_externo es siempre
+ * opcional: si no se encuentra el socio, el chofer se manda igual sin él.
+ */
+function armarDatosChoferAker_(conductorEmail, conductorNombre, empleadorNombre) {
   var datos = buscarConductorPorEmail_(conductorEmail);
   if (!datos) return null;
+  var chofer = {
+    chofer_documento: datos.documento,
+    nombre: conductorNombre || '',
+    telefono: datos.telefono || ''
+  };
+  var transporteCodigo = buscarCodigoSocioPorNombre_(empleadorNombre);
+  if (transporteCodigo) chofer.transporte_codigo_externo = transporteCodigo;
   return {
     chofer_documento: datos.documento,
-    chofer: {
-      chofer_documento: datos.documento,
-      nombre: conductorNombre || '',
-      telefono: datos.telefono || ''
-    }
+    chofer: chofer
   };
 }
 
@@ -564,7 +601,8 @@ function eventosAker_() {
  *  - Tiene fila pero la columna DNI está vacía en Driv.in para ese usuario.
  */
 function TEST_verificarChoferAker() {
-  var EMAIL = 'conductor@ejemplo.com'; // ← cambiar por el email real a probar
+  var EMAIL     = 'conductor@ejemplo.com'; // ← cambiar por el email real a probar
+  var EMPLEADOR = '';                      // ← opcional: nombre de Empleador (Texto 13) para probar transporte_codigo_externo
 
   var cfg  = CONFIG.SHEETS.TRIPULANTES;
   var rows = sheetsRead_(cfg.id, cfg.tab);
@@ -584,8 +622,14 @@ function TEST_verificarChoferAker() {
     }
   }
 
-  var resultado = buscarConductorPorEmail_(EMAIL);
-  console.log('buscarConductorPorEmail_ devuelve: ' + JSON.stringify(resultado));
+  if (EMPLEADOR) {
+    var codigoSocio = buscarCodigoSocioPorNombre_(EMPLEADOR);
+    console.log('buscarCodigoSocioPorNombre_("' + EMPLEADOR + '") devuelve: "' + codigoSocio + '"' +
+      (codigoSocio ? '' : ' (vacío = no hay match único type=employer en SociosDeNegocioTroncales con ese nombre exacto)'));
+  }
+
+  var resultado = armarDatosChoferAker_(EMAIL, encontrado ? encontrado[4] : '', EMPLEADOR);
+  console.log('armarDatosChoferAker_ devuelve: ' + JSON.stringify(resultado));
   return resultado;
 }
 
