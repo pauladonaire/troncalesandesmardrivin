@@ -33,6 +33,15 @@
 //   - NO se manda bill/nro_contenedor/es_custodio (no aplica a la operación)
 //     ni fecha_egreso por parada (no hay tiempo de servicio real cargado).
 //
+// Errores y reintentos (pantalla "Errores Aker", solo admin): cada intento
+// fallido se clasifica en LogsAker (columna "Categoría Error") como
+// SERVICIO_NO_ENCONTRADO, ERROR_SERVIDOR u OTRO — ver clasificarErrorAker_.
+// listarErroresAker() lista los itinerarios cuyo ÚLTIMO intento quedó en
+// error; reintentarEnvioAker() los reintenta re-armando el payload desde
+// ViajesTotalesTroncales. Si es SERVICIO_NO_ENCONTRADO, exige que el
+// frontend mande confirmoServicioCreado=true (el usuario confirmó que ya
+// dio de alta la patente en Aker) — si no, ni siquiera lo intenta.
+//
 // probarEnvioAkerFila() sigue disponible para pruebas puntuales manuales,
 // fila por fila, con o sin simulación — se corre a mano desde este editor.
 //
@@ -775,6 +784,68 @@ function enviarPayloadAker_(payload, filaSheet) {
   });
 }
 
+/**
+ * Clasifica un intento fallido de envío a Aker para que la pantalla de
+ * "Errores Aker" sepa qué mostrar y si hace falta pedir confirmación antes
+ * de reintentar:
+ *  - SERVICIO_NO_ENCONTRADO: Aker devuelve "Servicio no encontrado para la
+ *    patente X" (la patente no está dada de alta como servicio en Aker).
+ *    Reintentar sin corregir esto va a fallar de nuevo — por eso la pantalla
+ *    exige confirmar que ya se dio de alta antes de habilitar el reintento.
+ *  - ERROR_SERVIDOR: error de red, timeout, o respuesta no-JSON / HTTP 5xx
+ *    (ej. 502 Bad Gateway) — no es un problema de los datos, se puede
+ *    reintentar directo.
+ *  - OTRO: cualquier otro error de validación de Aker — se muestra el
+ *    mensaje tal cual para que un humano lo revise antes de reintentar.
+ */
+function clasificarErrorAker_(datos) {
+  if (datos.ok) return { categoria: '', patentes: '' };
+
+  var resp   = datos.respuesta;
+  var status = datos.httpStatus;
+
+  if (datos.error && !resp) {
+    return { categoria: 'ERROR_SERVIDOR', patentes: '' }; // no llegó a pegarle a Aker (red, o error armando el payload)
+  }
+  if ((resp && resp.raw) || (status && status >= 500)) {
+    return { categoria: 'ERROR_SERVIDOR', patentes: '' }; // respuesta no-JSON (ej. 502 de nginx) o 5xx
+  }
+  if (resp && resp.errors && typeof resp.errors === 'object') {
+    var patentes = [];
+    for (var key in resp.errors) {
+      var msg = String(resp.errors[key] || '');
+      var m = msg.match(/Servicio no encontrado para la patente\s+(\S+)/i);
+      if (m) patentes.push(m[1]);
+    }
+    if (patentes.length) {
+      return { categoria: 'SERVICIO_NO_ENCONTRADO', patentes: patentes.join(',') };
+    }
+  }
+  return { categoria: 'OTRO', patentes: '' };
+}
+
+/** Arma un mensaje legible de error a partir de lo registrado (para mostrar en la UI). */
+function mensajeErrorAker_(datos) {
+  if (datos.error) return datos.error;
+  var resp = datos.respuesta;
+  if (!resp) return 'Error desconocido';
+  if (resp.raw) return 'Respuesta no válida del servidor de Aker (HTTP ' + (datos.httpStatus || '?') + ')';
+  if (resp.message) return resp.message;
+  if (resp.errors) {
+    var partes = [];
+    for (var key in resp.errors) partes.push(key + ': ' + resp.errors[key]);
+    return partes.join(' | ');
+  }
+  return 'Error desconocido';
+}
+
+/** Agrega las columnas 12-13 (Categoría Error / Patentes afectadas) a LogsAker si todavía no existen. */
+function asegurarColumnasExtraLogsAker_(hoja) {
+  var header = hoja.getRange(1, 1, 1, 13).getValues()[0];
+  if (!header[11]) hoja.getRange(1, 12).setValue('Categoría Error').setFontWeight('bold');
+  if (!header[12]) hoja.getRange(1, 13).setValue('Patentes afectadas').setFontWeight('bold');
+}
+
 /** Registra el intento (simulado o real) en la hoja LogsAker. Crea la pestaña si no existe. */
 function logIntentoAker_(datos) {
   try {
@@ -785,12 +856,20 @@ function logIntentoAker_(datos) {
       hoja.appendRow([
         'Fecha/hora', 'Usuario', 'Fila Sheet', 'Código externo',
         'Simulado', 'OK', 'HTTP Status', 'Acción Aker', 'Error',
-        'Payload enviado', 'Respuesta Aker'
+        'Payload enviado', 'Respuesta Aker', 'Categoría Error', 'Patentes afectadas'
       ]);
-      hoja.getRange(1, 1, 1, 11).setFontWeight('bold');
+      hoja.getRange(1, 1, 1, 13).setFontWeight('bold');
+    } else {
+      asegurarColumnasExtraLogsAker_(hoja);
     }
     var usuario = '';
     try { usuario = Session.getActiveUser().getEmail() || ''; } catch(eUser) { /* falta el scope userinfo.email — no crítico */ }
+
+    var clasif = clasificarErrorAker_(datos);
+    // Para que la columna "Error" siempre tenga un mensaje legible: si no
+    // vino un error de red/armado de payload, se arma a partir de la
+    // respuesta de Aker (ej. "Servicio no encontrado para la patente X").
+    var mensajeError = datos.ok ? '' : (datos.error || mensajeErrorAker_(datos));
 
     hoja.appendRow([
       new Date().toISOString(),
@@ -801,12 +880,103 @@ function logIntentoAker_(datos) {
       datos.ok ? 'OK' : 'ERROR',
       datos.httpStatus || '',
       (datos.respuesta && datos.respuesta.accion) || '',
-      datos.error || '',
+      mensajeError,
       datos.payload ? JSON.stringify(datos.payload) : '',
-      datos.respuesta ? JSON.stringify(datos.respuesta) : ''
+      datos.respuesta ? JSON.stringify(datos.respuesta) : '',
+      clasif.categoria,
+      clasif.patentes
     ]);
   } catch(eLog) {
     console.error('logIntentoAker_ error: ' + eLog.message);
   }
   return datos;
+}
+
+/**
+ * Lista, para la pantalla de "Errores Aker", los itinerarios cuyo ÚLTIMO
+ * intento registrado en LogsAker quedó en error (si un reintento posterior
+ * ya salió OK para el mismo "Código externo", ya no aparece acá). Requiere
+ * rol admin — ver reintentarEnvioAker para el reintento en sí.
+ */
+function listarErroresAker(token) {
+  var session = validateSession(token);
+  if (!session) throw new Error('Sesión inválida o expirada');
+  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
+    throw new Error('Sin permisos para esta operación');
+  }
+
+  var ss   = SpreadsheetApp.openById(AKER_LOG_SHEET_ID);
+  var hoja = ss.getSheetByName(AKER_LOG_TAB);
+  if (!hoja) return { ok: true, errores: [] };
+
+  var rows = hoja.getDataRange().getValues();
+  if (rows.length < 2) return { ok: true, errores: [] };
+
+  var vistos  = {};
+  var errores = [];
+  for (var i = rows.length - 1; i >= 1; i--) {
+    var row = rows[i];
+    var codigoExterno = row[3];
+    if (!codigoExterno || vistos[codigoExterno]) continue;
+    vistos[codigoExterno] = true;
+    if (row[5] === 'OK') continue; // el intento más reciente de este código ya salió bien
+
+    errores.push({
+      fechaHora:     row[0],
+      usuario:       row[1],
+      filaSheet:     String(row[2] || ''),
+      codigoExterno: codigoExterno,
+      httpStatus:    row[6],
+      error:         row[8],
+      categoria:     row[11] || 'OTRO',
+      patentes:      row[12] || ''
+    });
+  }
+
+  return { ok: true, errores: errores };
+}
+
+/**
+ * Reintenta el envío a Aker de un itinerario puntual (fila simple o grupo de
+ * "Viajes con Paradas", identificado por el mismo "Fila Sheet" que quedó en
+ * LogsAker) — re-arma el payload desde ViajesTotalesTroncales, por si algún
+ * dato (ej. el DNI del conductor) se corrigió desde el intento original.
+ *
+ * Si la categoría es SERVICIO_NO_ENCONTRADO, exige confirmoServicioCreado =
+ * true — si no, ni siquiera intenta, porque va a volver a fallar con el
+ * mismo error hasta que alguien dé de alta esa patente como servicio en Aker.
+ */
+function reintentarEnvioAker(token, filaSheet, categoria, confirmoServicioCreado) {
+  var session = validateSession(token);
+  if (!session) throw new Error('Sesión inválida o expirada');
+  if (session.rol !== 'ADMIN_GENERAL' && session.rol !== 'ADMIN_TRAFICO') {
+    throw new Error('Sin permisos para esta operación');
+  }
+  if (categoria === 'SERVICIO_NO_ENCONTRADO' && confirmoServicioCreado !== true) {
+    throw new Error('Confirmá que el vehículo ya está dado de alta como servicio en Aker antes de reintentar — si no, va a volver a fallar con el mismo error.');
+  }
+
+  var filas = String(filaSheet).split(',').map(function(f) { return Number(String(f).trim()); }).filter(function(n) { return n > 0; });
+  if (!filas.length) throw new Error('Fila Sheet inválida: ' + filaSheet);
+
+  var cfg    = CONFIG.SHEETS.VIAJES;
+  var values = sheetsRead_(cfg.id, cfg.tab + '!A:DA');
+  var headers = values[0];
+
+  var items = filas.map(function(fila) {
+    var row = values[fila - 1];
+    if (!row) throw new Error('La fila ' + fila + ' ya no existe en ViajesTotalesTroncales');
+    return { fila: fila, row: row };
+  });
+
+  var payload;
+  try {
+    payload = items.length > 1
+      ? construirPayloadItinerarioAgrupado_(headers, items)
+      : construirPayloadItinerarioAker_(headers, items[0].row, {});
+  } catch(eBuild) {
+    return logIntentoAker_({ ok: false, filaSheet: filaSheet, error: 'Error armando payload al reintentar: ' + eBuild.message });
+  }
+
+  return enviarPayloadAker_(payload, filaSheet);
 }

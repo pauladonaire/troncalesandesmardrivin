@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO') {
     const sbParadas = document.getElementById('sbParadasLink');
     if (sbParadas) sbParadas.style.display = 'flex';
+    const sbAkerErrores = document.getElementById('sbAkerErroresLink');
+    if (sbAkerErrores) sbAkerErrores.style.display = 'flex';
   }
 
   document.getElementById('btn-aplicar').addEventListener('click', () => {

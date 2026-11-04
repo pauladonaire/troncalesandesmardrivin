@@ -154,6 +154,8 @@ function inicializarPaso1() {
   if (SESSION.rol === 'ADMIN_GENERAL' || SESSION.rol === 'ADMIN_TRAFICO') {
     const sbParadas = document.getElementById('sbParadasLink');
     if (sbParadas) sbParadas.style.display = 'flex';
+    const sbAkerErrores = document.getElementById('sbAkerErroresLink');
+    if (sbAkerErrores) sbAkerErrores.style.display = 'flex';
   }
   if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO') {
     const hoy = new Date().toISOString().split('T')[0];

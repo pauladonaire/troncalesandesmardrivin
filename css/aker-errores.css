@@ -1,0 +1,86 @@
+/* ── Badges de categoría de error ── */
+.badge-cat-servicio {
+  background: rgba(240,165,0,0.15);
+  color: var(--color-warning);
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-cat-servidor {
+  background: rgba(110,181,255,0.15);
+  color: #6eb5ff;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-cat-otro {
+  background: rgba(232,64,64,0.12);
+  color: var(--color-danger);
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.celda-mensaje {
+  max-width: 360px;
+  white-space: normal !important;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.btn-reintentar {
+  background: var(--color-primary);
+  color: var(--color-black);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-reintentar:hover { opacity: 0.88; }
+.btn-reintentar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Modal reintento ── */
+.retry-detalle {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 13px;
+  color: var(--color-white);
+  margin-bottom: 14px;
+}
+.retry-detalle div + div { margin-top: 6px; }
+.retry-detalle .label { color: var(--color-text-muted); margin-right: 6px; }
+
+.retry-confirm-box {
+  background: rgba(240,165,0,0.08);
+  border: 1px solid var(--color-warning);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.retry-confirm-box label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-white);
+  cursor: pointer;
+}
+.retry-confirm-box input[type="checkbox"] {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-warning);
+  cursor: pointer;
+  flex-shrink: 0;
+}

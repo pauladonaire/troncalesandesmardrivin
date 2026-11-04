@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (isAdmin) {
     document.getElementById('navParadas').style.display   = 'flex';
     document.getElementById('quickParadas').style.display = 'flex';
+    document.getElementById('navAkerErrores').style.display   = 'flex';
+    document.getElementById('quickAkerErrores').style.display = 'flex';
   }
   if (isAdmin)     document.getElementById('navActualizar').style.display = 'flex';
   if (isSuperAdmin) document.getElementById('navAdmin').style.display     = 'flex';

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Errores Aker — Troncales</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/viajes.css">
+  <link rel="stylesheet" href="css/reportes.css">
+  <link rel="stylesheet" href="css/aker-errores.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <button class="btn-menu" onclick="abrirSidebar()" title="Menú">☰</button>
+        <a href="dashboard.html" style="text-decoration:none">
+          <span class="brand-name">TRONCALES</span>
+        </a>
+      </div>
+      <div class="header-user">
+        <span id="userName"></span>
+        <span id="userRolBadge" class="badge badge-info"></span>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <div class="app-body" style="overflow-y:auto; flex-direction:column;">
+      <main style="padding:24px; max-width:100%; width:100%; box-sizing:border-box;">
+
+        <h1 style="font-size:20px;font-weight:700;margin:0 0 20px;color:var(--color-white);">
+          ⚠ Errores Aker — Reintentos
+        </h1>
+
+        <!-- Loader -->
+        <div id="ak-loader" class="rep-loader">
+          <span class="spinner"></span>
+          <span>Cargando errores pendientes...</span>
+        </div>
+
+        <!-- Error -->
+        <div id="ak-error" class="rep-error" style="display:none"></div>
+
+        <!-- Contenido principal -->
+        <div id="contenido-ak" style="display:none">
+
+          <!-- KPIs -->
+          <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-total">—</div>
+              <div class="kpi-label">Pendientes de reintentar</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-servicio">—</div>
+              <div class="kpi-label">Servicio no encontrado</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-servidor">—</div>
+              <div class="kpi-label">Error de servidor</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-valor" id="kpi-otro">—</div>
+              <div class="kpi-label">Otros / validación</div>
+            </div>
+          </div>
+
+          <p style="font-size:13px;color:var(--color-text-muted);margin:0 0 16px;">
+            Se muestra solo el ÚLTIMO intento de cada itinerario — si ya se reintentó y salió bien, desaparece de esta lista solo.
+          </p>
+
+          <!-- Barra contador + refrescar -->
+          <div class="tabla-header-bar">
+            <span class="tabla-contador" id="contador-ak">—</span>
+            <button class="btn btn-outline btn-sm" onclick="cargarErrores()">↻ Refrescar</button>
+          </div>
+
+          <!-- Tabla -->
+          <div class="tabla-container">
+            <div class="tabla-scroll">
+              <table class="tabla-viajes-hist">
+                <thead>
+                  <tr>
+                    <th>Fecha/hora</th>
+                    <th>Código externo</th>
+                    <th>Fila(s)</th>
+                    <th>Categoría</th>
+                    <th>Patente(s)</th>
+                    <th>Mensaje</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-ak"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /contenido-ak -->
+
+      </main>
+    </div>
+
+  </div><!-- /app-layout -->
+
+  <!-- Sidebar overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="cerrarSidebar()"></div>
+
+  <!-- Sidebar nav panel -->
+  <nav class="sidebar-nav-panel" id="sidebarNavPanel">
+    <div class="sidebar-header">
+      <span class="brand-name" style="font-size:13px">TRONCALES</span>
+      <button class="sidebar-close" onclick="cerrarSidebar()">✕</button>
+    </div>
+    <div class="sidebar-items">
+      <a href="dashboard.html" class="sidebar-item">← Dashboard</a>
+      <a href="viajes.html" class="sidebar-item">🚛 Generar Viajes</a>
+      <a href="viajes_meli.html" class="sidebar-item">📦 Generar Viajes Meli</a>
+      <a href="viajes-generales.html" class="sidebar-item">📋 Viajes Generales Import.</a>
+      <a href="viajes-paradas.html" class="sidebar-item">🛑 Viajes con Paradas</a>
+      <a href="reportes.html" class="sidebar-item">📊 Reportes</a>
+      <a href="aker-errores.html" class="sidebar-item">⚠ Errores Aker</a>
+      <div class="sidebar-divider"></div>
+      <button class="sidebar-item danger" onclick="handleLogout()">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <!-- Modal de reintento -->
+  <div class="modal-overlay" id="modalRetry">
+    <div class="modal">
+      <h3 class="modal-title">Reintentar envío a Aker</h3>
+
+      <div class="retry-detalle">
+        <div><span class="label">Código externo:</span><span id="retryCodigo"></span></div>
+        <div><span class="label">Fila(s):</span><span id="retryFilas"></span></div>
+        <div><span class="label">Categoría:</span><span id="retryCategoriaTxt"></span></div>
+        <div><span class="label">Error:</span><span id="retryMensaje"></span></div>
+      </div>
+
+      <div class="retry-confirm-box" id="retryConfirmBox" style="display:none">
+        <label>
+          <input type="checkbox" id="retryCheckConfirma" onchange="actualizarBotonRetry()">
+          <span>Confirmo que ya verifiqué en Aker Control que la/las patente(s) <strong id="retryPatentesTxt"></strong> ya están dadas de alta como servicio. Si no es así, el reintento va a fallar de nuevo con el mismo error.</span>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="cerrarRetryModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btnConfirmarRetry" onclick="confirmarRetry()">Reintentar ahora</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-rep" id="toastRep"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/aker-errores.js"></script>
+</body>
+</html>

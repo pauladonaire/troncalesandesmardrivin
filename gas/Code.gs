@@ -45,6 +45,8 @@ function doPost(e) {
       'getDatosArrastres':     () => getDatosArrastres(token),
       'addArrastres':          () => addArrastres(token, data.filas),
       'getViajesHistorico':    () => getViajesHistorico(token),
+      'listarErroresAker':     () => listarErroresAker(token),
+      'reintentarEnvioAker':   () => reintentarEnvioAker(token, data.filaSheet, data.categoria, data.confirmoServicioCreado),
     };
 
     const handler = routes[action];
