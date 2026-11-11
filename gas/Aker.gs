@@ -19,6 +19,14 @@
 // Aker por fila. No se consulta RUTAS_DETALLE en ese caso: las paradas ya
 // vienen explícitas. Ver construirPayloadItinerarioAgrupado_.
 //
+// Código de dirección en paradas de Ruta Maestra: las paradas intermedias
+// (sheet RUTAS_DETALLE) no tienen código propio, solo nombre_parada. Se
+// manda como codigo_externo el Código de dirección real de
+// DireccionesTroncales (buscado por nombre, ver buscarCodigoDireccionPorNombre_)
+// en vez de un código sintético "{despacho}-P{n}" — Aker reportó que ese
+// código sintético creaba una referencia nueva por cada itinerario en lugar
+// de reusar siempre la misma para el mismo punto físico.
+//
 // Datos extra que suma la API v1.1 de Aker (ver buscarConductorPorEmail_ /
 // armarDatosChoferAker_ / eventosAker_):
 //   - choferes[] + vehiculos[].chofer_documento: se busca el DNI/CUIL del
@@ -300,9 +308,13 @@ function enviarItinerarioAkerDesdeFila_(numeroFilaSheet, opciones) {
  *  - paradas          = si el viaje tiene Ruta Maestra asignada, se arma el
  *                       itinerario COMPLETO: todas las paradas intermedias de
  *                       esa ruta (sheet RUTAS_DETALLE, ordenadas por
- *                       posicion_parada) + el destino real al final (Código
- *                       de dirección). Si no tiene Ruta Maestra, solo se
- *                       manda el destino (comportamiento anterior).
+ *                       posicion_parada) + el destino real al final. TODAS
+ *                       van con su Código de dirección real como
+ *                       codigo_externo (buscado por nombre para las
+ *                       intermedias vía buscarCodigoDireccionPorNombre_) —
+ *                       nunca un código sintético por itinerario. Si no
+ *                       tiene Ruta Maestra, solo se manda el destino
+ *                       (comportamiento anterior).
  *  - armar_ruta       = true
  */
 function construirPayloadItinerarioAker_(headers, row, opciones) {
@@ -356,11 +368,16 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
   }
 
   // Si el viaje tiene Ruta Maestra, se arma el itinerario completo: las
-  // paradas intermedias de esa ruta (sin código propio en DireccionesTroncales,
-  // por eso se les arma un codigo_externo sintético "{despacho}-P{n}") y el
-  // destino real al final. El destino real SIEMPRE conserva su propio
-  // Código de dirección como codigo_externo (para que Aker lo siga
-  // reconociendo como la misma referencia de siempre).
+  // paradas intermedias de esa ruta (sheet RUTAS_DETALLE, que no tiene
+  // código propio por parada, solo nombre_parada) + el destino real al
+  // final. TODAS las paradas mandan como codigo_externo el Código de
+  // dirección real de DireccionesTroncales (buscado por nombre para las
+  // intermedias) — NUNCA un código sintético derivado del itinerario, porque
+  // eso crea una referencia nueva en Aker por cada envío en vez de reusar
+  // el mismo punto (bug reportado por Aker: "Servicio no encontrado"/
+  // referencias duplicadas). Solo si una parada intermedia no tiene match
+  // único en DireccionesTroncales se cae al código sintético como último
+  // recurso, para no bloquear el envío del itinerario.
   var paradasRuta = rutaMaestra ? buscarParadasRutaMaestra_(rutaMaestra) : [];
 
   var paradas = [];
@@ -368,15 +385,28 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
 
   paradasRuta.forEach(function(p) {
     orden++;
-    paradas.push({
+    var codigoDireccionParada = buscarCodigoDireccionPorNombre_(p.nombre);
+    var parada = {
       orden:          orden - 1,
-      codigo_externo: codigoDespacho + '-P' + orden,
+      codigo_externo: codigoDireccionParada || (codigoDespacho + '-P' + orden),
       fecha_ingreso:  combinarFechaConHora_(fechaInicio, p.horaInicio),
       stop_type:      'drop',
       nombre:         p.nombre,
       latitud:        p.lat,
       longitud:       p.lng
-    });
+    };
+    if (codigoDireccionParada) {
+      // Hay match único en DireccionesTroncales: usamos nombre/lat/lng de la
+      // dirección (la referencia ya existente en Aker), no los de RUTAS_DETALLE,
+      // para evitar coordenadas/nombres levemente distintos para el mismo punto.
+      var direccionParada = buscarDireccionPorCodigo_(codigoDireccionParada);
+      if (direccionParada) {
+        parada.nombre   = direccionParada.name || p.nombre;
+        parada.latitud  = direccionParada.lat  || p.lat;
+        parada.longitud = direccionParada.lng  || p.lng;
+      }
+    }
+    paradas.push(parada);
   });
 
   if (codigoDireccion) {
@@ -642,6 +672,32 @@ function TEST_verificarChoferAker() {
   return resultado;
 }
 
+/**
+ * Diagnóstico manual: para una Ruta Maestra puntual, muestra qué código de
+ * dirección le encuentra (o no) buscarCodigoDireccionPorNombre_ a cada
+ * parada intermedia (sheet RUTAS_DETALLE) — así se puede revisar, antes de
+ * que se mande un itinerario real, si el nombre_parada de RUTAS_DETALLE
+ * coincide EXACTO (ignorando mayúsculas/espacios) con el "name" de algún
+ * registro de DireccionesTroncales. Si da vacío, va a caer al código
+ * sintético de siempre — hay que corregir el nombre_parada en RUTAS_DETALLE
+ * o el name en DireccionesTroncales para que coincidan.
+ * Correr desde el editor (▶ Ejecutar, con "TEST_verificarParadasRutaMaestra"
+ * seleccionada) después de cambiar RUTA_MAESTRA acá abajo por el valor real
+ * de la columna "Ruta Maestra" del viaje.
+ */
+function TEST_verificarParadasRutaMaestra_() {
+  var RUTA_MAESTRA = '#104-Avellaneda/San Luis/San Martin/Mendoza'; // ← cambiar por la ruta real a probar
+
+  var paradasRuta = buscarParadasRutaMaestra_(RUTA_MAESTRA);
+  console.log('buscarParadasRutaMaestra_("' + RUTA_MAESTRA + '") devuelve ' + paradasRuta.length + ' parada(s).');
+
+  paradasRuta.forEach(function(p, i) {
+    var codigo = buscarCodigoDireccionPorNombre_(p.nombre);
+    console.log((i + 1) + '. nombre_parada="' + p.nombre + '" → código de dirección: ' +
+      (codigo ? ('"' + codigo + '"') : '(SIN MATCH — va a usar código sintético)'));
+  });
+}
+
 /** Busca una dirección en DireccionesTroncales por su código. */
 function buscarDireccionPorCodigo_(codigo) {
   if (!codigo) return null;
@@ -667,6 +723,36 @@ function buscarDireccionPorCodigo_(codigo) {
     }
   }
   return null;
+}
+
+/**
+ * Busca en DireccionesTroncales el "code" de una dirección por su nombre
+ * exacto — se usa para que las paradas intermedias de una Ruta Maestra
+ * (sheet RUTAS_DETALLE, que no tiene código propio por parada, solo
+ * nombre_parada) manden el MISMO código de dirección que ya usa Aker para
+ * ese punto, en vez de un código sintético por itinerario. Si no hay match
+ * único, devuelve '' (mejor no mandar nada a adivinar).
+ */
+function buscarCodigoDireccionPorNombre_(nombre) {
+  if (!nombre) return '';
+  var cfg  = CONFIG.SHEETS.DIRECCIONES;
+  var rows = sheetsRead_(cfg.id, cfg.tab);
+  if (rows.length < 2) return '';
+
+  var headers = rows[0];
+  var iCode = headers.indexOf('code');
+  var iName = headers.indexOf('name');
+  if (iCode === -1 || iName === -1) return '';
+
+  var norm = String(nombre).trim().toUpperCase();
+  var encontrados = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][iName] || '').trim().toUpperCase() === norm) {
+      encontrados.push(rows[i]);
+    }
+  }
+  if (encontrados.length !== 1) return ''; // sin match, o ambiguo — mejor no mandar nada
+  return String(encontrados[0][iCode] || '').trim();
 }
 
 /**
