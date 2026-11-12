@@ -732,7 +732,7 @@ function TEST_verificarChoferAker() {
  * seleccionada) después de cambiar RUTA_MAESTRA acá abajo por el valor real
  * de la columna "Ruta Maestra" del viaje.
  */
-function TEST_verificarParadasRutaMaestra_() {
+function TEST_verificarParadasRutaMaestra() {
   var RUTA_MAESTRA = '#104-Avellaneda/San Luis/San Martin/Mendoza'; // ← cambiar por la ruta real a probar
 
   var paradasRuta = buscarParadasRutaMaestra_(RUTA_MAESTRA);
