@@ -45,7 +45,7 @@
 //   - eventos: entrada_salida + panico + motivo_detencion, siempre en true.
 //   - NO se manda bill/nro_contenedor/es_custodio (no aplica a la operación)
 //     ni fecha_egreso por parada (no hay tiempo de servicio real cargado).
-//   - mesas + estado: la Mesa Aker (NACIONAL/MELI/EXPRESS/CHILE) se elige al
+//   - mesas + estado: la Mesa Aker (NACIONAL/GENERAL/MELI/EXPRESS/CHILE) se elige al
 //     crear el plan (selector en el Paso 1, ver viajes*.html/js), se guarda
 //     en la fila (Texto 15) y se traduce a su token de 15 caracteres leyendo
 //     Propiedades del script (ver resolverTokenMesaAker_/aplicarMesaAker_ —
@@ -70,9 +70,9 @@
 // Propiedades del script), igual que SERVICE_ACCOUNT_JSON:
 //   - AKER_DOMINIO       → ej: "midominio.akercontrol.com" (SIN https:// ni /ws/...)
 //   - AKER_TOKEN         → el Bearer token que provee Aker
-//   - AKER_MESA_NACIONAL, AKER_MESA_MELI, AKER_MESA_EXPRESS, AKER_MESA_CHILE
-//     → el token de 15 caracteres de cada mesa (los 4, los provee Aker).
-//       Sin alguno de estos, esa mesa puntual simplemente no se asigna
+//   - AKER_MESA_NACIONAL, AKER_MESA_GENERAL, AKER_MESA_MELI, AKER_MESA_EXPRESS,
+//     AKER_MESA_CHILE → el token de 15 caracteres de cada mesa (los provee
+//       Aker). Sin alguno de estos, esa mesa puntual simplemente no se asigna
 //       (el itinerario se crea igual, sin mesas/estado).
 // ============================================================
 
@@ -653,11 +653,12 @@ function eventosAker_() {
 }
 
 /**
- * Busca el token de 15 caracteres de una Mesa Aker (NACIONAL/MELI/EXPRESS/
- * CHILE) en Propiedades del script — igual que AKER_DOMINIO/AKER_TOKEN, NO
- * se guardan en el código (son credenciales de Aker). Hay que cargar 4
- * propiedades en Configuración del proyecto > Propiedades del script:
- *   AKER_MESA_NACIONAL, AKER_MESA_MELI, AKER_MESA_EXPRESS, AKER_MESA_CHILE
+ * Busca el token de 15 caracteres de una Mesa Aker (NACIONAL/GENERAL/MELI/
+ * EXPRESS/CHILE) en Propiedades del script — igual que AKER_DOMINIO/
+ * AKER_TOKEN, NO se guardan en el código (son credenciales de Aker). Hay que
+ * cargar una propiedad por mesa en Configuración del proyecto > Propiedades
+ * del script: AKER_MESA_NACIONAL, AKER_MESA_GENERAL, AKER_MESA_MELI,
+ * AKER_MESA_EXPRESS, AKER_MESA_CHILE
  */
 function resolverTokenMesaAker_(nombreMesa) {
   var nombre = String(nombreMesa || '').trim().toUpperCase();

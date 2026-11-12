@@ -38,9 +38,9 @@ const CONFIG = {
   SESSION_DURATION_HOURS: 8
 };
 
-// Nombres de las 4 Mesas Aker que se pueden elegir al crear un plan (ver
+// Nombres de las Mesas Aker que se pueden elegir al crear un plan (ver
 // selector "Mesa Aker" en viajes*.html). Sus tokens de 15 caracteres NO van
 // acá (son credenciales de Aker) — se leen en tiempo de ejecución desde
 // Propiedades del script (ver resolverTokenMesaAker_ en Aker.gs), igual que
 // AKER_DOMINIO/AKER_TOKEN.
-var MESAS_AKER_NOMBRES = ['NACIONAL', 'MELI', 'EXPRESS', 'CHILE'];
+var MESAS_AKER_NOMBRES = ['NACIONAL', 'GENERAL', 'MELI', 'EXPRESS', 'CHILE'];
