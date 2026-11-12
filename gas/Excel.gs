@@ -258,7 +258,7 @@ function construirFilaViaje_(v, planDatos, emailUsuario) {
     emailUsuario,                             // [89] Texto 12
     v.empleador                      || '', // [90] Texto 13  → Empleador
     v.conductorNombre                || '', // [91] Texto 14  → Nombre Conductor 1
-    '',                                       // [92] Texto 15
+    planDatos.mesa                     || '', // [92] Texto 15  → Mesa Aker (NACIONAL/MELI/EXPRESS/CHILE), elegida al crear el plan
     '',                                       // [93] Texto 16
     '',                                       // [94] Texto 17
     '',                                       // [95] Texto 18

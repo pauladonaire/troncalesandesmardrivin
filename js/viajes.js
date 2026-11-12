@@ -173,8 +173,9 @@ function submitCrearPlan(e) {
   const fecha      = document.getElementById('fechaViaje').value;
   const pais       = document.getElementById('pais').value;
   const fechaMax   = document.getElementById('fechaMaxEntrega').value;
+  const mesa       = document.getElementById('mesaAker').value;
   const schemaCode = pais === 'argentina' ? 'CL-ARG' : 'CL-CHILE';
-  planCreado = { nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais };
+  planCreado = { nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais, mesa };
   transicionarPaso(2);
 }
 

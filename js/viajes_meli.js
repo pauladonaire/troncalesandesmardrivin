@@ -164,13 +164,14 @@ function submitCrearPlan(e) {
   const fecha      = document.getElementById('fechaViaje').value;
   const pais       = document.getElementById('pais').value;
   const fechaMax   = document.getElementById('fechaMaxEntrega').value;
+  const mesa       = document.getElementById('mesaAker').value;
   const schemaCode = pais === 'argentina' ? 'CL-ARG' : 'CL-CHILE';
   const hoy = new Date().toISOString().split('T')[0];
   if (SESSION.rol !== 'ADMIN_GENERAL' && SESSION.rol !== 'ADMIN_TRAFICO' && fecha < hoy) {
     errEl.textContent = 'No podés seleccionar una fecha de inicio anterior a hoy.';
     return;
   }
-  planCreado = { nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais };
+  planCreado = { nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais, mesa };
   transicionarPaso(2);
 }
 

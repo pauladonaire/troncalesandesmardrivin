@@ -133,6 +133,15 @@
                     <label for="fechaMaxEntrega">Fecha Máxima de Entrega *</label>
                     <input type="date" id="fechaMaxEntrega" required>
                   </div>
+                  <div class="form-group">
+                    <label for="mesaAker">Mesa Aker *</label>
+                    <select id="mesaAker" required>
+                      <option value="NACIONAL" selected>Nacional</option>
+                      <option value="MELI">Meli</option>
+                      <option value="EXPRESS">Express</option>
+                      <option value="CHILE">Chile</option>
+                    </select>
+                  </div>
                 </div>
                 <div id="errorPlan" class="error-msg" style="margin-bottom:12px;"></div>
                 <button type="submit" id="btnCrearPlan" class="btn btn-primary">

@@ -40,6 +40,14 @@
 //   - eventos: entrada_salida + panico + motivo_detencion, siempre en true.
 //   - NO se manda bill/nro_contenedor/es_custodio (no aplica a la operación)
 //     ni fecha_egreso por parada (no hay tiempo de servicio real cargado).
+//   - mesas + estado: la Mesa Aker (NACIONAL/MELI/EXPRESS/CHILE) se elige al
+//     crear el plan (selector en el Paso 1, ver viajes*.html/js), se guarda
+//     en la fila (Texto 15) y se traduce a su token de 15 caracteres leyendo
+//     Propiedades del script (ver resolverTokenMesaAker_/aplicarMesaAker_ —
+//     el token NO está en el código, es una credencial de Aker). Siempre
+//     con estado:"en_curso" (arranca el monitoreo ya mismo). Si la fila no
+//     tiene mesa cargada (filas viejas) o falta la propiedad, no se manda
+//     ninguno de los dos.
 //
 // Errores y reintentos (pantalla "Errores Aker", solo admin): cada intento
 // fallido se clasifica en LogsAker (columna "Categoría Error") como
@@ -53,10 +61,14 @@
 // probarEnvioAkerFila() sigue disponible para pruebas puntuales manuales,
 // fila por fila, con o sin simulación — se corre a mano desde este editor.
 //
-// Requiere 2 propiedades del script (Configuración del proyecto >
+// Requiere estas propiedades del script (Configuración del proyecto >
 // Propiedades del script), igual que SERVICE_ACCOUNT_JSON:
-//   - AKER_DOMINIO  → ej: "midominio.akercontrol.com" (SIN https:// ni /ws/...)
-//   - AKER_TOKEN    → el Bearer token que provee Aker
+//   - AKER_DOMINIO       → ej: "midominio.akercontrol.com" (SIN https:// ni /ws/...)
+//   - AKER_TOKEN         → el Bearer token que provee Aker
+//   - AKER_MESA_NACIONAL, AKER_MESA_MELI, AKER_MESA_EXPRESS, AKER_MESA_CHILE
+//     → el token de 15 caracteres de cada mesa (los 4, los provee Aker).
+//       Sin alguno de estos, esa mesa puntual simplemente no se asigna
+//       (el itinerario se crea igual, sin mesas/estado).
 // ============================================================
 
 var AKER_LOG_SHEET_ID = '1ke5jO5ODxMrKyR7EsVAJOiSvv7Vclf_2JCAyVyBK8Dw';
@@ -335,6 +347,7 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
   var conductorEmail   = val('Correo Conductor');
   var conductorNombre  = val('Texto 14');
   var empleadorNombre  = val('Texto 13');
+  var mesaNombre       = val('Texto 15'); // Mesa Aker elegida al crear el plan — ver Excel.gs construirFilaViaje_
   var fechaInicioCol   = val('Fecha Inicio Viaje'); // columna CZ — ver Excel.gs registrarViajesEnSheet_
   if (!fechaInicioCol && row.length > 103) {
     // Respaldo por posición fija: "Fecha Inicio Viaje" es SIEMPRE la 4ta
@@ -441,6 +454,7 @@ function construirPayloadItinerarioAker_(headers, row, opciones) {
     eventos:        eventosAker_()
   };
   if (datosChofer) payload.choferes = [datosChofer.chofer];
+  aplicarMesaAker_(payload, mesaNombre);
   return payload;
 }
 
@@ -478,6 +492,7 @@ function construirPayloadItinerarioAgrupado_(headers, items) {
   var conductorEmail   = val(primero, 'Correo Conductor');
   var conductorNombre  = val(primero, 'Texto 14');
   var empleadorNombre  = val(primero, 'Texto 13');
+  var mesaNombre       = val(primero, 'Texto 15'); // Mesa Aker elegida al crear el plan — ver Excel.gs construirFilaViaje_
   var fechaInicioCol   = val(primero, 'Fecha Inicio Viaje');
   if (!fechaInicioCol && primero.length > 103) {
     fechaInicioCol = primero[103] != null ? String(primero[103]) : ''; // respaldo posicional, ver construirPayloadItinerarioAker_
@@ -533,6 +548,7 @@ function construirPayloadItinerarioAgrupado_(headers, items) {
     eventos:        eventosAker_()
   };
   if (datosChofer) payload.choferes = [datosChofer.chofer];
+  aplicarMesaAker_(payload, mesaNombre);
   return payload;
 }
 
@@ -624,6 +640,37 @@ function armarDatosChoferAker_(conductorEmail, conductorNombre, empleadorNombre)
 /** Eventos de monitoreo habilitados para los itinerarios que mandamos a Aker. */
 function eventosAker_() {
   return { entrada_salida: true, panico: true, motivo_detencion: true };
+}
+
+/**
+ * Busca el token de 15 caracteres de una Mesa Aker (NACIONAL/MELI/EXPRESS/
+ * CHILE) en Propiedades del script — igual que AKER_DOMINIO/AKER_TOKEN, NO
+ * se guardan en el código (son credenciales de Aker). Hay que cargar 4
+ * propiedades en Configuración del proyecto > Propiedades del script:
+ *   AKER_MESA_NACIONAL, AKER_MESA_MELI, AKER_MESA_EXPRESS, AKER_MESA_CHILE
+ */
+function resolverTokenMesaAker_(nombreMesa) {
+  var nombre = String(nombreMesa || '').trim().toUpperCase();
+  if (MESAS_AKER_NOMBRES.indexOf(nombre) === -1) return '';
+  var props = PropertiesService.getScriptProperties();
+  return props.getProperty('AKER_MESA_' + nombre) || '';
+}
+
+/**
+ * Si el plan tiene una Mesa Aker elegida, suma al payload "mesas" (token de
+ * esa mesa) y "estado": "en_curso" — van siempre juntos según la API de
+ * Aker, y solo aplican en el alta (si el itinerario ya existe, Aker los
+ * ignora). El itinerario queda asignado a esa mesa de monitoreo apenas se
+ * crea, ya con el monitoreo en marcha. Si no hay mesa cargada (fila vieja,
+ * de antes de este cambio) o falta la propiedad del script con su token, no
+ * se manda ninguno de los dos — el itinerario se crea igual, sin asignar a
+ * ninguna mesa, como hasta ahora.
+ */
+function aplicarMesaAker_(payload, nombreMesa) {
+  var token = resolverTokenMesaAker_(nombreMesa);
+  if (!token) return;
+  payload.mesas  = [token];
+  payload.estado = 'en_curso';
 }
 
 /**

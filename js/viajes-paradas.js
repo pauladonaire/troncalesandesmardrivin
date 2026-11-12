@@ -170,8 +170,9 @@ function submitCrearPlan(e) {
   const fecha      = document.getElementById('fechaViaje').value;
   const pais       = document.getElementById('pais').value;
   const fechaMax   = document.getElementById('fechaMaxEntrega').value;
+  const mesa       = document.getElementById('mesaAker').value;
   const schemaCode = pais === 'argentina' ? 'CL-ARG' : 'CL-CHILE';
-  planCreado = { nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais };
+  planCreado = { nombre, fecha, fechaMaxEntrega: fechaMax, schemaCode, pais, mesa };
 
   // Código base para todo el plan — cada vehículo agrega "-N", cada parada
   // agrega " (n)" sobre el código de SU vehículo (ver agregarGrupo/recolectarViajes).
