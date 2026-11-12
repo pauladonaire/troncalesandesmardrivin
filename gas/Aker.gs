@@ -745,6 +745,46 @@ function TEST_verificarParadasRutaMaestra() {
   });
 }
 
+/**
+ * Diagnóstico manual: busca en DireccionesTroncales, por texto CONTENIDO
+ * (no exacto), qué direcciones existen parecidas a un nombre — para usar
+ * cuando TEST_verificarParadasRutaMaestra dio "SIN MATCH" y hace falta ver
+ * si la dirección: (a) existe con otra ortografía/variante → hay que
+ * corregir el nombre en una punta o la otra, o (b) no existe en absoluto
+ * → no es un problema de nombres, directamente no hay código para ese
+ * punto todavía.
+ * Correr desde el editor (▶ Ejecutar, con "TEST_buscarDireccionesPorTexto"
+ * seleccionada) después de cambiar TEXTO acá abajo.
+ */
+function TEST_buscarDireccionesPorTexto() {
+  var TEXTO = 'MENDOZA'; // ← cambiar por el texto a buscar (sin importar mayúsculas)
+
+  var cfg  = CONFIG.SHEETS.DIRECCIONES;
+  var rows = sheetsRead_(cfg.id, cfg.tab);
+  if (rows.length < 2) { console.log('DireccionesTroncales vacío.'); return; }
+
+  var headers = rows[0];
+  var iCode = headers.indexOf('code');
+  var iName = headers.indexOf('name');
+
+  var norm = String(TEXTO).trim().toUpperCase();
+  var encontrados = [];
+  for (var i = 1; i < rows.length; i++) {
+    var nombre = String(rows[i][iName] || '');
+    if (nombre.toUpperCase().indexOf(norm) !== -1) {
+      encontrados.push({ code: rows[i][iCode], name: nombre });
+    }
+  }
+
+  console.log('Búsqueda de "' + TEXTO + '" en DireccionesTroncales: ' + encontrados.length + ' resultado(s).');
+  encontrados.forEach(function(d, i) {
+    console.log((i + 1) + '. code="' + d.code + '" | name="' + d.name + '"');
+  });
+  if (!encontrados.length) {
+    console.log('→ No hay NINGUNA dirección parecida — no es un problema de ortografía, directamente no está cargada.');
+  }
+}
+
 /** Busca una dirección en DireccionesTroncales por su código. */
 function buscarDireccionPorCodigo_(codigo) {
   if (!codigo) return null;
